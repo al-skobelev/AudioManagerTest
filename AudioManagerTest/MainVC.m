@@ -7,15 +7,44 @@
 #import "MainVC.h"
 #import "AudioManager.h"
 
+#define ADD_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, SEL$, OBJ$)               \
+    {                                                                   \
+        id nc$ = [NSNotificationCenter defaultCenter];                  \
+        id observ$ = (OBSERV$);                                         \
+        id ntfname$ = (NTFNAME$);                                       \
+        id obj$ = (OBJ$);                                               \
+        [nc$ removeObserver: observ$ name: ntfname$ object: obj$];      \
+        [nc$ addObserver: observ$                                       \
+                selector: @selector(SEL$)                               \
+                    name: ntfname$                                      \
+                  object: obj$];                                        \
+    }
+
+#define ADD_OBSERVER(NTFNAME$, OBSERV$, SEL$)           \
+    ADD_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, SEL$, nil)
+
+
+#define REMOVE_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, OBJ$)              \
+    [[NSNotificationCenter defaultCenter]                           \
+        removeObserver: OBSERV$ name: NTFNAME$ object: OBJ$];       \
+    
+
+#define REMOVE_OBSERVER(NTFNAME$, OBSERV$)          \
+    REMOVE_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, nil)               
+
+
+
 //============================================================================
 @interface MainVC ()
 
 @property (strong, nonatomic) NSArray* files;
-@property (assign, nonatomic) BOOL     playing;
 
 - (void) setupFiles;
 - (void) setupTogglePlayBtn: (BOOL) enabled;
 - (void) preparePlayerForSelectedRow;
+
+- (void) onPlayTimer: (NSNotification*) ntf;
+- (void) onPlayCompleted: (NSNotification*) ntf;
 @end
 
 //============================================================================
@@ -28,7 +57,6 @@
 
 @synthesize files = _files;
 @synthesize weakView;
-@synthesize playing = _playing;
 
 //----------------------------------------------------------------------------
 - (void) viewDidLoad
@@ -46,10 +74,26 @@
 }
 
 //----------------------------------------------------------------------------
+- (void) syncSlider
+{
+    AudioManager* amgr = [AudioManager sharedManager];
+    double dur = [amgr duration];
+
+    double time = ((isfinite (dur) && (dur > 0))
+                   ? [amgr currentTime] / dur
+                   : 0);
+    float minval = [self.playSlider minimumValue];
+    float maxval = [self.playSlider maximumValue];
+    
+    [self.playSlider setValue: ((maxval - minval) * time + minval)];
+}
+
+//----------------------------------------------------------------------------
 - (void) updateUI
 {
     [self setupFiles];
     [self setupTogglePlayBtn: NO];
+    [self syncSlider];
 
     [self.tableView reloadData];
     [self preparePlayerForSelectedRow];
@@ -60,11 +104,25 @@
 {
     [super viewWillAppear: animated];
     [self updateUI];
+    [AudioManager sharedManager].periodicTimerInterval = 0.5;
+    
+    ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_COMPLETED, self, onPlayCompleted:);
+    ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_TIMER,     self, onPlayTimer:);
+}
+
+//----------------------------------------------------------------------------
+- (void) viewWillDisappear: (BOOL) animated
+{
+    [super viewWillDisappear: animated];
+    REMOVE_OBSERVER (NTF_AUDIO_MANAGER_PLAY_COMPLETED, self);
+    REMOVE_OBSERVER (NTF_AUDIO_MANAGER_PLAY_TIMER,     self);
 }
 
 //----------------------------------------------------------------------------
 - (IBAction) onRefresh: (id) sender 
 {
+    AudioManager* amgr = [AudioManager sharedManager];
+    [amgr reset];
     [self updateUI];
 }
 
@@ -77,22 +135,42 @@
 //----------------------------------------------------------------------------
 - (IBAction) onTogglePlay: (id) sender 
 {
-    if (self.playing)
-    {
-        [[AudioManager sharedManager] pause];
-        self.playing = NO;
-    }
-    else
-    {       
-        [[AudioManager sharedManager] play];
-        self.playing = YES;
-    }
+    AudioManager* amgr = [AudioManager sharedManager];
+
+    if (amgr.playing) [amgr pause];
+    else              [amgr play];
+    
     [self setupTogglePlayBtn: YES];
 }
 
 //----------------------------------------------------------------------------
+- (IBAction) onBeginPlaySliding: (id) sender
+{
+    AudioManager* amgr = [AudioManager sharedManager];
+    amgr.periodicTimerInterval = 0;
+}
+
+
+//----------------------------------------------------------------------------
+- (IBAction) onEndPlaySliding: (id) sender
+{
+    AudioManager* amgr = [AudioManager sharedManager];
+    amgr.periodicTimerInterval = 0.5;
+}
+
+
+//----------------------------------------------------------------------------
 - (IBAction) onPlaySliderChanged: (id) sender
 {
+    AudioManager* amgr = [AudioManager sharedManager];
+    double duration = [amgr duration];
+
+    double  time = self.playSlider.value;
+    float minval = self.playSlider.minimumValue;
+    float maxval = self.playSlider.maximumValue;
+
+    time = duration * (time - minval) / (maxval - minval);
+    [amgr seekToTime: time];
 }
 
 //----------------------------------------------------------------------------
@@ -114,14 +192,20 @@
     NSError* err = nil;
     NSArray* names = [fm contentsOfDirectoryAtPath: [self documentsFolder]
                                              error: &err];
-    self.files = names;
+
+    id arr = [NSMutableArray arrayWithObject: @"LIVE HTTP STREAM"];
+    [arr addObjectsFromArray: names];
+
+    self.files = arr;
 }
 
 //----------------------------------------------------------------------------
 - (void) setupTogglePlayBtn: (BOOL) enabled
 {
+    AudioManager* amgr = [AudioManager sharedManager];
+
     self.togglePlayBtn.enabled = enabled;
-    self.togglePlayBtn.image = [UIImage imageNamed:  (self. playing ? @"stop" : @"play")];
+    self.togglePlayBtn.image = [UIImage imageNamed: (amgr.playing ? @"stop" : @"play")];
 }
 
 //----------------------------------------------------------------------------
@@ -130,15 +214,50 @@
     NSIndexPath* ipath = [self.tableView indexPathForSelectedRow];
     if (ipath)
     {
-        NSString* fname = [self.files objectAtIndex: ipath.row];
-        
-        fname = [[self documentsFolder] stringByAppendingPathComponent: fname];
-        NSURL* url = [NSURL fileURLWithPath: fname];
+        NSURL* url;
+        if (ipath.row > 0) 
+        {
+            NSString* fname = [self.files objectAtIndex: ipath.row];
+            fname = [[self documentsFolder] stringByAppendingPathComponent: fname];
+
+            url = [NSURL fileURLWithPath: fname];
+        }
+        else {
+            url = [NSURL URLWithString: @"http://devimages.apple.com/iphone/samples/bipbop/bipbopall.m3u8"];
+        }
         
         [[AudioManager sharedManager] 
             asyncPrepareURL: url
           completionHandler: ^(NSError* err){ [self onPlayURLReady: err]; }];
     }
+}
+
+
+//----------------------------------------------------------------------------
+- (void) onPlayTimer: (NSNotification*) ntf
+{
+    // [self syncSlider];
+
+    NSNumber* val = [[ntf userInfo] objectForKey: RELATIVE_TIME_KEY];
+    if (val)
+    {
+		float minval = [self.playSlider minimumValue];
+		float maxval = [self.playSlider maximumValue];
+		double  time = [val doubleValue];
+
+		[self.playSlider setValue: ((maxval - minval) * time + minval)];
+    }
+}
+
+//----------------------------------------------------------------------------
+- (void) onPlayCompleted: (NSNotification*) ntf
+{
+    AudioManager* amgr = [AudioManager sharedManager];
+
+    [amgr seekToTime: 0];
+    self.playSlider.value = 0;
+
+    [self setupTogglePlayBtn: YES];
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -156,10 +275,10 @@
 
 
 //----------------------------------------------------------------------------
-- (UITableViewCell*) tableView: (UITableView*) tableView
+- (UITableViewCell*) tableView: (UITableView*) tv
          cellForRowAtIndexPath: (NSIndexPath*) indexPath
 {
-    UITableViewCell* cell = [tableView dequeueReusableCellWithIdentifier: @"Cell"];
+    UITableViewCell* cell = [tv dequeueReusableCellWithIdentifier: @"Cell"];
     if (! cell)
     {
         cell = [[UITableViewCell alloc] 

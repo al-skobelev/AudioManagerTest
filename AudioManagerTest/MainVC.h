@@ -18,7 +18,10 @@
 
 - (IBAction) onRefresh: (id) sender;
 - (IBAction) onTogglePlay: (id) sender;
+
 - (IBAction) onPlaySliderChanged: (id) sender;
+- (IBAction) onBeginPlaySliding: (id) sender;
+- (IBAction) onEndPlaySliding: (id) sender;
 
 @end
 /* EOF */

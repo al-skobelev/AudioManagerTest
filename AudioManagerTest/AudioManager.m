@@ -8,9 +8,6 @@
 #define LOG(FMT$, ARGS$...) NSLog (@"%s -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 #define ELOG(FMT$, ARGS$...) NSLog (@"%s -- ERROR -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 
-#define STATUS_KEY       @"status"
-#define RATE_KEY         @"rate"
-#define CURRENT_ITEM_KEY @"currentItem"
 
 #define TRACKS_KEY @"tracks"
 #define PLAYABLE_KEY @"playable"
@@ -25,15 +22,17 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 //============================================================================
 @interface AudioManager ()
 
+@property (strong, nonatomic) id <NSObject> timer;
 @end
 
 //============================================================================
 @implementation AudioManager 
 
-@synthesize playing    = _playing;
 @synthesize player     = _player;
 @synthesize playerItem = _playerItem;
-@synthesize playerView = _playerView;
+
+@synthesize periodicTimerInterval = _periodicTimerInterval;
+@synthesize timer = _timer;
 
 //----------------------------------------------------------------------------
 + (AudioManager*) sharedManager
@@ -43,6 +42,14 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     
     dispatch_once (&_s_once, ^{ _s_obj = [self new]; });
     return _s_obj;
+}
+
+//----------------------------------------------------------------------------
+- (void) reset
+{
+    [self.player pause];
+    self.player = nil;
+    self.playerItem = nil;
 }
 
 //----------------------------------------------------------------------------
@@ -182,6 +189,24 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 }
 
 //----------------------------------------------------------------------------
+- (void) notifyAboutChangeOfObject: (id) obj
+                           withKey: (NSString*) key
+{
+    id info = [NSDictionary dictionaryWithObjectsAndKeys: obj, key, nil];
+    id ntf = [NSNotification
+                 notificationWithName: NTF_AUDIO_MANAGER_STATE_CHANGED
+                               object: self
+                             userInfo: info];
+    
+    LOG(@"WILL POST NOTIFICATION: key: \"%@\" object: %@", key, obj);
+    
+    [[NSNotificationCenter defaultCenter]
+        performSelectorOnMainThread: @selector(postNotification:)
+                         withObject: ntf
+                      waitUntilDone: NO];
+}
+
+//----------------------------------------------------------------------------
 - (void) observeValueForKeyPath: (NSString*) keyPath
                        ofObject: (id) object
                          change: (NSDictionary*) change
@@ -190,19 +215,21 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     if (context == _s_rateContext) 
     {
         LOG(@"context: RATE");
+
+        [self notifyAboutChangeOfObject: [NSNumber numberWithFloat: self.player.rate]
+                                withKey: RATE_KEY];
     }
     else if (context == _s_currentItemContext) 
     {
         LOG(@"context: CURRENT_ITEM");
+        [self notifyAboutChangeOfObject: self.player.currentItem
+                                withKey: CURRENT_ITEM_KEY];
     }
     else if (context == _s_itemStatusContext) 
     {
         LOG(@"context: ITEM STATUS");
-        dispatch_async (dispatch_get_main_queue(),
-                        ^{
-                            LOG(@"PLAYER STATUS KEY CHANGED");
-                            //if (self.statusCallback) self.statusCallback(self);
-                        });
+        [self notifyAboutChangeOfObject: [NSNumber numberWithInt: self.player.status]
+                                withKey: STATUS_KEY];
     }
     else {
         [super observeValueForKeyPath: keyPath
@@ -216,12 +243,28 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 //----------------------------------------------------------------------------
 - (void) playerItemDidReachEnd: (NSNotification*) ntf
 {
-    [self.player seekToTime: kCMTimeZero];
+    self.player.rate = 0;
+
+    ntf = [NSNotification
+              notificationWithName: NTF_AUDIO_MANAGER_PLAY_COMPLETED
+                            object: self];
+    
+    [[NSNotificationCenter defaultCenter]
+        performSelectorOnMainThread: @selector(postNotification:)
+                         withObject: ntf
+                      waitUntilDone: NO];
+}
+
+//----------------------------------------------------------------------------
+- (BOOL) playing
+{
+    return (self.player.rate > 0);
 }
 
 //----------------------------------------------------------------------------
 - (void) play
 {
+    [self startPeriodicTimer];
     [self.player play];
 }
 
@@ -229,6 +272,86 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 - (void) pause
 {
     [self.player pause];
+    [self stopPeriodicTimer];
+}
+
+//----------------------------------------------------------------------------
+- (double) duration
+{
+    AVPlayerItem* item = self.player.currentItem;
+    CMTime cmtime = item ? item.duration : kCMTimeInvalid;
+
+    return (CMTIME_IS_INVALID (cmtime) ? 0 : CMTimeGetSeconds (cmtime));
+}
+
+//----------------------------------------------------------------------------
+- (double) currentTime
+{
+    CMTime cmtime = self.player.currentTime;
+    return (CMTIME_IS_VALID (cmtime) ? CMTimeGetSeconds (cmtime) : 0);
+}
+
+//----------------------------------------------------------------------------
+- (void) seekToTime: (double) seconds
+{
+    CMTime cmtime = kCMTimeZero;
+        
+    if (isfinite(seconds)) 
+    {
+        if (seconds < 0) seconds = [self duration] + seconds;
+        if (seconds < 0) seconds = 0;
+
+        cmtime  = CMTimeMakeWithSeconds (seconds, NSEC_PER_SEC);
+    }
+    else {
+        AVPlayerItem* item = self.player.currentItem;
+        cmtime = item ? item.duration : kCMTimeInvalid;
+    }
+    [self.player seekToTime: cmtime];
+}
+
+//----------------------------------------------------------------------------
+- (void) startPeriodicTimer
+{
+    if (_periodicTimerInterval > 0) 
+    {
+        CMTime cmtime = CMTimeMakeWithSeconds (_periodicTimerInterval, NSEC_PER_SEC);
+
+        self.timer = [self.player 
+                         addPeriodicTimeObserverForInterval: cmtime
+                                                      queue: NULL // use the main queue
+                                                 usingBlock: ^(CMTime time) 
+                             {
+                                 if (_periodicTimerInterval)
+                                 {
+                                     double sec = CMTimeGetSeconds(time);
+                                     double dur = [self duration];
+                                     double rel = 0;
+
+                                     if (isfinite (dur) && dur > 0) rel = sec / dur;
+ 
+                                     id info = [NSDictionary dictionaryWithObjectsAndKeys: 
+                                                                 [NSNumber numberWithDouble: sec], CURRENT_TIME_KEY,
+                                                                 [NSNumber numberWithDouble: rel], RELATIVE_TIME_KEY,
+                                                                 [NSNumber numberWithDouble: dur], DURATION_KEY,
+                                                                 nil];
+
+                                     [[NSNotificationCenter defaultCenter]
+                                         postNotificationName: NTF_AUDIO_MANAGER_PLAY_TIMER
+                                                       object: self
+                                                     userInfo: info];
+                                 }
+                             }];
+    }
+}
+
+//----------------------------------------------------------------------------
+- (void) stopPeriodicTimer
+{
+    if (self.timer) {
+        [self.player removeTimeObserver: self.timer];
+        self.timer = nil;
+    }
 }
 
 @end
