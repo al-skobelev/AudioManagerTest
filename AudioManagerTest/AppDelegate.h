@@ -1,15 +1,18 @@
-//
-//  AppDelegate.h
-//  AudioManagerTest
-//
-//  Created by Alexander Skobelev on 25/06/2012.
-//  Copyright (c) 2012 __MyCompanyName__. All rights reserved.
-//
+/**************************************************************************** 
+ * AppDelegate.h                                                            * 
+ * Created by Alexander Skobelev                                            * 
+ *                                                                          * 
+ ****************************************************************************/
 
 #import <UIKit/UIKit.h>
 
+#define APP  ((UIApplication*)[UIApplication sharedApplication])
+#define APPD ((AppDelegate*)[UIApplication sharedApplication].delegate)
+
+//============================================================================
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 
 @property (strong, nonatomic) UIWindow *window;
 
 @end
+/* EOF */
