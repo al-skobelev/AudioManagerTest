@@ -32,7 +32,11 @@
 
 + (AudioManager*) sharedManager;
 
-- (void) reset;
+- (void) reset; // is it neccessary?
+
+- (BOOL) prepareFile: (NSString*) path;
+- (BOOL) prepareURL: (NSURL*) url;
+
 - (BOOL) asyncPrepareURL: (NSURL*) url
        completionHandler: (void (^)(NSError* error)) handler;
 

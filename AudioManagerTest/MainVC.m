@@ -211,6 +211,12 @@
 //----------------------------------------------------------------------------
 - (void) preparePlayerForSelectedRow
 {
+    AudioManager* amgr = [AudioManager sharedManager];
+
+    [amgr pause]; 
+    [amgr seekToTime: 0];
+    [self syncSlider];
+
     NSIndexPath* ipath = [self.tableView indexPathForSelectedRow];
     if (ipath)
     {
@@ -226,9 +232,14 @@
             url = [NSURL URLWithString: @"http://devimages.apple.com/iphone/samples/bipbop/bipbopall.m3u8"];
         }
         
-        [[AudioManager sharedManager] 
-            asyncPrepareURL: url
-          completionHandler: ^(NSError* err){ [self onPlayURLReady: err]; }];
+        if ([amgr prepareURL: url])
+        {
+            [self onPlayURLReady: nil];
+        }
+
+        // [amgr 
+        //     asyncPrepareURL: url
+        //   completionHandler: ^(NSError* err){ [self onPlayURLReady: err]; }];
     }
 }
 

@@ -47,9 +47,10 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 //----------------------------------------------------------------------------
 - (void) reset
 {
-    [self.player pause];
-    self.player = nil;
-    self.playerItem = nil;
+    if (self.player) [self.player pause];
+    
+    [self setupPlayerItemToItem: nil];
+    [self setupPlayer];
 }
 
 //----------------------------------------------------------------------------
@@ -95,6 +96,40 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 }
 
 //----------------------------------------------------------------------------
+- (BOOL) prepareURL: (NSURL*) url
+{
+    BOOL     __block  url_ready = NO;
+    NSError* __block  url_prep_err = nil;
+
+    BOOL res = [self asyncPrepareURL: url
+                   completionHandler: ^(NSError* err) {
+            url_ready = YES;
+            url_prep_err = err;
+        }];
+
+    if (! res) return NO;
+    
+    while (! url_ready)
+    {
+        [[NSRunLoop currentRunLoop] runUntilDate: [NSDate distantPast]];
+    }
+
+    if (url_prep_err)
+    {
+        LOG(@"ERROR: %@", [url_prep_err localizedDescription]);
+        return NO;
+    }
+    return YES;
+}
+
+//----------------------------------------------------------------------------
+- (BOOL) prepareFile: (NSString*) path
+{
+    NSURL* url = [NSURL fileURLWithPath: path];
+    return [self prepareURL: url];
+}
+
+//----------------------------------------------------------------------------
 - (void) setupPlayerItemToItem: (AVPlayerItem*) item
 {
     id nc = [NSNotificationCenter defaultCenter];
@@ -131,24 +166,29 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 //----------------------------------------------------------------------------
 - (void) setupPlayer
 {
-    if (! self.player)
+    if (self.player)
+    {
+        [self.player removeObserver: self 
+                         forKeyPath: CURRENT_ITEM_KEY];
+
+        [self.player removeObserver: self 
+                         forKeyPath: RATE_KEY];
+        self.player = nil;
+    }
+
+    if (self.playerItem) 
     {
         self.player = [AVPlayer playerWithPlayerItem: self.playerItem];	
-		
+	
         [self.player addObserver: self 
                       forKeyPath: CURRENT_ITEM_KEY 
                          options: (NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew)
                          context: _s_currentItemContext];
-        
+    
         [self.player addObserver: self 
                       forKeyPath: RATE_KEY 
                          options: (NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew)
                          context: _s_rateContext];
-    }
-
-    if (self.player.currentItem != self.playerItem)
-    {
-        [self.player replaceCurrentItemWithPlayerItem: self.playerItem];
     }
 }    
 
@@ -169,7 +209,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
             case AVKeyValueStatusFailed:
                 item = [AVPlayerItem playerItemWithURL: asset.URL];
                 if (! item) {
-                    if (handler) handler(error);
+                    if (handler) handler (error);
                     return;
                 }
                 break;
