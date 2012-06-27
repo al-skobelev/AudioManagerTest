@@ -6,24 +6,77 @@
 
 #import "AppDelegate.h"
 #import <AVFoundation/AVFoundation.h>
+#import <AudioToolbox/AudioToolbox.h>
+
+#import "AudioManager.h"
+
+//============================================================================
+@interface AppDelegate ()
+@property (assign) BOOL resumePlayback;
+@property (assign) BOOL inBackground;
+@end
 
 //============================================================================
 @implementation AppDelegate
 
+@synthesize resumePlayback = _resumePlayback;
 @synthesize window = _window;
+@synthesize inBackground = _inBackground;
 
 //----------------------------------------------------------------------------
-- (BOOL) application: (UIApplication*) application
-  didFinishLaunchingWithOptions: (NSDictionary*) launchOptions
+- (void) setupAudioSession
 {
+    //AudioSessionInitialize (NULL, NULL, NULL, NULL);
     NSError* err = nil;
-    if (! [[AVAudioSession sharedInstance]
-              setCategory: AVAudioSessionCategoryPlayback
+    AVAudioSession* as = [AVAudioSession sharedInstance];
+
+    as.delegate = self;
+
+    if (! [as setCategory: AVAudioSessionCategoryPlayback
                     error: &err])
     {
         NSLog(@"ERROR: Failed to set playback audio category. %@", [err localizedDescription]);
     }
 
+    //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
+    if (! [as setActive: YES
+                  error: &err])
+    {
+        NSLog(@"ERROR: Failed to set audio session active. %@", [err localizedDescription]);
+    }
+
+}
+
+//----------------------------------------------------------------------------
+- (void) beginInterruption
+{
+    if ([AudioManager sharedManager].playing)
+    {
+        [[AudioManager sharedManager] pause];
+        self.resumePlayback = YES;
+    }
+}
+
+//----------------------------------------------------------------------------
+- (void) endInterruption
+{
+    if (! self.inBackground)
+    {
+        [self setupAudioSession];
+        if (self.resumePlayback)
+        {
+            [[AudioManager sharedManager] play];
+            self.resumePlayback = NO;
+        }
+    }
+}
+
+//----------------------------------------------------------------------------
+- (BOOL) application: (UIApplication*) application
+  didFinishLaunchingWithOptions: (NSDictionary*) launchOptions
+{
+    [self setupAudioSession];
+    [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
     // Override point for customization after application launch.
     return YES;
 }
@@ -43,19 +96,19 @@
 //----------------------------------------------------------------------------
 - (void) applicationDidEnterBackground: (UIApplication*) application
 {
-    // Use this method to release shared resources, save user data, invalidate
-    // timers, and store enough application state information to restore your
-    // application to its current state in case it is terminated later.  If
-    // your application supports background execution, this method is called
-    // instead of applicationWillTerminate: when the user quits.
+    self.inBackground = YES;
 }
 
 //----------------------------------------------------------------------------
 - (void) applicationWillEnterForeground: (UIApplication*) application
 {
-    // Called as part of the transition from the background to the inactive
-    // state; here you can undo many of the changes made on entering the
-    // background.
+    self.inBackground = NO;
+
+    if (self.resumePlayback) {
+        dispatch_after (0.1, dispatch_get_main_queue(), ^{
+                [self endInterruption];
+            });
+    }
 }
 
 //----------------------------------------------------------------------------

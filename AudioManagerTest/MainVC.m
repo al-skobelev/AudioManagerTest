@@ -319,6 +319,5 @@ didSelectRowAtIndexPath: (NSIndexPath*) ipath
     [self preparePlayerForSelectedRow];
 }
 
-
 @end
 /* EOF */
