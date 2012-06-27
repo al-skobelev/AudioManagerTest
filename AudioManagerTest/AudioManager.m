@@ -239,7 +239,8 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 - (void) notifyAboutChangeOfObject: (id) obj
                            withKey: (NSString*) key
 {
-    id info = [NSDictionary dictionaryWithObjectsAndKeys: obj, key, nil];
+    id info = [NSDictionary dictionaryWithObject: obj forKey: key];
+
     id ntf = [NSNotification
                  notificationWithName: NTF_AUDIO_MANAGER_STATE_CHANGED
                                object: self
@@ -262,7 +263,6 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     if (context == _s_rateContext) 
     {
         LOG(@"context: RATE");
-
         [self notifyAboutChangeOfObject: [NSNumber numberWithFloat: self.player.rate]
                                 withKey: RATE_KEY];
     }
