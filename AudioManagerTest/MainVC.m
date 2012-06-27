@@ -6,6 +6,7 @@
 
 #import "MainVC.h"
 #import "AudioManager.h"
+#import <MediaPlayer/MediaPlayer.h>
 
 #define ADD_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, SEL$, OBJ$)               \
     {                                                                   \
@@ -249,14 +250,25 @@
 {
     // [self syncSlider];
 
-    NSNumber* val = [[ntf userInfo] objectForKey: RELATIVE_TIME_KEY];
-    if (val)
-    {
-		float minval = [self.playSlider minimumValue];
-		float maxval = [self.playSlider maximumValue];
-		double  time = [val doubleValue];
+    float minval = [self.playSlider minimumValue];
+    float maxval = [self.playSlider maximumValue];
+    double  time = [[[ntf userInfo] objectForKey: RELATIVE_TIME_KEY] doubleValue];
 
-		[self.playSlider setValue: ((maxval - minval) * time + minval)];
+    [self.playSlider setValue: ((maxval - minval) * time + minval)];
+    
+    
+    NSIndexPath* ipath = [self.tableView indexPathForSelectedRow];
+    if (ipath)
+    {
+        id info = [NSDictionary dictionaryWithObjectsAndKeys:
+                                    [NSNumber numberWithInt: MPMediaTypeAnyAudio],   MPMediaItemPropertyMediaType,
+                                    [self.files objectAtIndex: ipath.row],           MPMediaItemPropertyTitle,
+                                    [[ntf userInfo] objectForKey: CURRENT_TIME_KEY], MPNowPlayingInfoPropertyPlaybackRate,
+                                    [[ntf userInfo] objectForKey: DURATION_KEY],     MPMediaItemPropertyPlaybackDuration,
+                                    [[ntf userInfo] objectForKey: RATE_KEY],         MPNowPlayingInfoPropertyPlaybackRate,
+                                    nil];
+
+        [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
     }
 }
 

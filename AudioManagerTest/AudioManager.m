@@ -22,6 +22,9 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 //============================================================================
 @interface AudioManager ()
 
+@property (strong, nonatomic) AVPlayer* player;
+@property (strong, nonatomic) AVPlayerItem* playerItem;
+
 @property (strong, nonatomic) id <NSObject> timer;
 @end
 
@@ -109,8 +112,10 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 
     if (! res) return NO;
     
+    int i = 0;
     while (! url_ready)
     {
+        NSLog(@"%d", i++);
         [[NSRunLoop currentRunLoop] runUntilDate: [NSDate distantPast]];
     }
 
@@ -168,6 +173,8 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 {
     if (self.player)
     {
+        [self stopPeriodicTimer];
+
         [self.player removeObserver: self 
                          forKeyPath: CURRENT_ITEM_KEY];
 
@@ -357,28 +364,32 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     {
         CMTime cmtime = CMTimeMakeWithSeconds (_periodicTimerInterval, NSEC_PER_SEC);
 
+        AudioManager* __weak self_weak = self;
+        
         self.timer = [self.player 
                          addPeriodicTimeObserverForInterval: cmtime
                                                       queue: NULL // use the main queue
                                                  usingBlock: ^(CMTime time) 
                              {
-                                 if (_periodicTimerInterval)
+                                 if (self_weak.periodicTimerInterval > 0)
                                  {
-                                     double sec = CMTimeGetSeconds(time);
-                                     double dur = [self duration];
-                                     double rel = 0;
+                                     double secs  = CMTimeGetSeconds(time);
+                                     double dur   = [self_weak duration];
+                                     double rate  = self_weak.player.rate;
+                                     double rtime = 0;
 
-                                     if (isfinite (dur) && dur > 0) rel = sec / dur;
+                                     if (isfinite (dur) && dur > 0) rtime = secs / dur;
  
                                      id info = [NSDictionary dictionaryWithObjectsAndKeys: 
-                                                                 [NSNumber numberWithDouble: sec], CURRENT_TIME_KEY,
-                                                                 [NSNumber numberWithDouble: rel], RELATIVE_TIME_KEY,
-                                                                 [NSNumber numberWithDouble: dur], DURATION_KEY,
+                                                                 [NSNumber numberWithDouble: secs],  CURRENT_TIME_KEY,
+                                                                 [NSNumber numberWithDouble: rtime], RELATIVE_TIME_KEY,
+                                                                 [NSNumber numberWithDouble: dur],   DURATION_KEY,
+                                                                 [NSNumber numberWithDouble: rate],  RATE_KEY,
                                                                  nil];
 
                                      [[NSNotificationCenter defaultCenter]
                                          postNotificationName: NTF_AUDIO_MANAGER_PLAY_TIMER
-                                                       object: self
+                                                       object: self_weak
                                                      userInfo: info];
                                  }
                              }];

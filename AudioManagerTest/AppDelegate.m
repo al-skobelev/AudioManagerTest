@@ -5,6 +5,7 @@
  ****************************************************************************/
 
 #import "AppDelegate.h"
+#import <AVFoundation/AVFoundation.h>
 
 //============================================================================
 @implementation AppDelegate
@@ -15,6 +16,14 @@
 - (BOOL) application: (UIApplication*) application
   didFinishLaunchingWithOptions: (NSDictionary*) launchOptions
 {
+    NSError* err = nil;
+    if (! [[AVAudioSession sharedInstance]
+              setCategory: AVAudioSessionCategoryPlayback
+                    error: &err])
+    {
+        NSLog(@"ERROR: Failed to set playback audio category. %@", [err localizedDescription]);
+    }
+
     // Override point for customization after application launch.
     return YES;
 }
