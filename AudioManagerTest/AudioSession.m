@@ -18,7 +18,7 @@
                        (((N$) << 24) & 0xff000000))
 #endif
 
-
+static id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size);
 static void interruption_listener (void* data, UInt32 inInterruptionState);
 
 static void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
@@ -28,14 +28,14 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 //============================================================================
 @interface AudioSession ()
 
-@property (strong, nonatomic) NSCountedSet* listenedProperties;
+// @property (strong, nonatomic) NSCountedSet* listenedProperties;
 @property (assign, nonatomic) BOOL active;
 @end
 
 //============================================================================
 @implementation AudioSession
 
-@synthesize listenedProperties = _listenedProperties;
+// @synthesize listenedProperties = _listenedProperties;
 @synthesize active = _active;
 
 //----------------------------------------------------------------------------
@@ -49,7 +49,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 {
     if (! (self = [super init])) return nil;
     
-    self.listenedProperties = [NSCountedSet new];
+    // self.listenedProperties = [NSCountedSet new];
     return self;
 }
 
@@ -63,49 +63,79 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     return _s_obj;
 }
 
-//----------------------------------------------------------------------------
-- (OSStatus) startListeningForProperty: (UInt32) prop_id
-{
-    id obj = [NSNumber numberWithUnsignedInt: prop_id];
-    [self.listenedProperties addObject: obj];
-    if (0 == [self.listenedProperties countForObject: obj])
-    {
-        OSStatus status = AudioSessionAddPropertyListener (prop_id, listener, NULL);
-        if (status != 0)
-        {
-            uint32_t ecode = SWAP_CODE(status);
-            uint32_t pcode = SWAP_CODE(prop_id);
+// //----------------------------------------------------------------------------
+// - (OSStatus) startListeningForProperty: (UInt32) prop_id
+// {
+//     id obj = [NSNumber numberWithUnsignedInt: prop_id];
+//     [self.listenedProperties addObject: obj];
+//     if (0 == [self.listenedProperties countForObject: obj])
+//     {
+//         OSStatus status = AudioSessionAddPropertyListener (prop_id, listener, NULL);
+//         if (status != 0)
+//         {
+//             uint32_t ecode = SWAP_CODE(status);
+//             uint32_t pcode = SWAP_CODE(prop_id);
 
-            ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
-            return status;
-        }
+//             ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+//             return status;
+//         }
+//     }
+//     [self.listenedProperties addObject: obj];
+//     return 0;
+// }
+// //----------------------------------------------------------------------------
+// - (OSStatus) stopListeningForProperty: (UInt32) prop_id
+// {
+//     id obj = [NSNumber numberWithUnsignedInt: prop_id];
+
+//     [self.listenedProperties removeObject: obj];
+//     if (0 == [self.listenedProperties countForObject: obj])
+//     {
+//         OSStatus status = AudioSessionRemovePropertyListener (prop_id);
+//         if (status != 0)
+//         {
+//             uint32_t ecode = SWAP_CODE(status);
+//             uint32_t pcode = SWAP_CODE(prop_id);
+
+//             ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+//             return status;
+//         }
+//     }
+
+//     return 0;
+// }
+
+//----------------------------------------------------------------------------
+- (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
+             forProperty: (UInt32) prop_id
+{
+    OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, listener);
+    if (status != 0)
+    {
+        uint32_t ecode = SWAP_CODE(status);
+        uint32_t pcode = SWAP_CODE(prop_id);
+        
+        ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+        return status;
     }
-    [self.listenedProperties addObject: obj];
     return 0;
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) stopListeningForProperty: (UInt32) prop_id
+- (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
+                forProperty: (UInt32) prop_id
 {
-    id obj = [NSNumber numberWithUnsignedInt: prop_id];
-
-    [self.listenedProperties removeObject: obj];
-    if (0 == [self.listenedProperties countForObject: obj])
+    OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, listener);
+    if (status != 0)
     {
-        OSStatus status = AudioSessionRemovePropertyListener (prop_id);
-        if (status != 0)
-        {
-            uint32_t ecode = SWAP_CODE(status);
-            uint32_t pcode = SWAP_CODE(prop_id);
-
-            ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
-            return status;
-        }
+        uint32_t ecode = SWAP_CODE(status);
+        uint32_t pcode = SWAP_CODE(prop_id);
+        
+        ELOG(@"AudioSessionRemovePropertyListenerWithUserData (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+        return status;
     }
-
     return 0;
 }
-
 
 //----------------------------------------------------------------------------
 -(OSStatus) getRawValue: (void*) prop
@@ -219,8 +249,11 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     else {
         self.active = active;
 
-        if (active) [self startListeningForProperty: kAudioSessionProperty_ServerDied];
-        else        [self stopListeningForProperty:  kAudioSessionProperty_ServerDied];
+        if (active) [self addListener: self
+                          forProperty: kAudioSessionProperty_ServerDied];
+
+        else        [self removeListener: self
+                             forProperty: kAudioSessionProperty_ServerDied];
     }
 
     return status;
@@ -305,24 +338,24 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 }
 
 //----------------------------------------------------------------------------
-- (void) handleChangeOfPropery: (UInt32) prop_id
-                  propertyData: (void*)  data
-                      dataSize: (UInt32) data_size
-{
-    id val = [self valueOfProperty: prop_id
-                    fromRawDataPtr: data
-                          dataSize: data_size];
+// - (void) handleChangeOfPropery: (UInt32) prop_id
+//                   propertyData: (void*)  data
+//                       dataSize: (UInt32) data_size
+// {
+//     id val = [self valueOfProperty: prop_id
+//                     fromRawDataPtr: data
+//                           dataSize: data_size];
 
-    id info = [NSDictionary dictionaryWithObjectsAndKeys: 
-                                [NSNumber numberWithUnsignedInt: prop_id], PROP_ID_KEY,
-                                val, VALUE_KEY,
-                                nil];
+//     id info = [NSDictionary dictionaryWithObjectsAndKeys: 
+//                                 [NSNumber numberWithUnsignedInt: prop_id], PROP_ID_KEY,
+//                                 val, VALUE_KEY,
+//                                 nil];
 
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName: NTF_AUDIO_SESSION_PROPERTY_CHANGED
-                      object: self
-                    userInfo: info];
-}
+//     [[NSNotificationCenter defaultCenter]
+//         postNotificationName: NTF_AUDIO_SESSION_PROPERTY_CHANGED
+//                       object: self
+//                     userInfo: info];
+// }
 
 
 @end
@@ -338,10 +371,66 @@ void interruption_listener (void* data, UInt32 inInterruptionState)
 void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
                         UInt32 data_size, const void* data)
 {
-    dispatch_async (dispatch_get_main_queue(), ^{
-            [[AudioSession sharedInstance] handleChangeOfPropery: prop_id
-                                                    propertyData: data
-                                                        dataSise: data_size]; });
+    dispatch_sync (dispatch_get_main_queue(), ^{
+            
+            id info = prop_value_from_raw_data (prop_id, data, data_size);
+            id <AudioSessionPropertyListener> __unsafe_unretained obj = (id) client_data;
+
+            [obj handleChangeOfPropery: prop_id
+                              withInfo: info]; });
+
+            // [[AudioSession sharedInstance] handleChangeOfPropery: prop_id
+            //                                         propertyData: data
+            //                                             dataSise: data_size]; });
+}
+
+//----------------------------------------------------------------------------
+id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
+{
+    switch (prop_id)
+    {
+        case kAudioSessionProperty_AudioRoute:                              // CFStringRef      (get only)
+
+            assert (data_size == sizeof (id));
+            return CFBridgingRelease (*data);
+
+        case kAudioSessionProperty_AudioRouteChange:                        // CFDictionaryRef  (property listener)
+
+            assert (data_size == sizeof (id));
+            return CFBridgingRelease (*data);
+
+        case kAudioSessionProperty_CurrentHardwareSampleRate:               // Float64          (get only)
+        case kAudioSessionProperty_PreferredHardwareSampleRate:             // Float64          (get/set)
+
+            assert (data_size == sizeof (Float64));
+            return [NSNumber numberWithDouble: *(Float64*)data];
+
+        case kAudioSessionProperty_AudioCategory:                           // UInt32           (get/set)
+        case kAudioSessionProperty_AudioInputAvailable:                     // UInt32           (get only/property listener)
+        case kAudioSessionProperty_CurrentHardwareInputNumberChannels:      // UInt32           (get only)
+        case kAudioSessionProperty_CurrentHardwareOutputNumberChannels:     // UInt32           (get only)
+        case kAudioSessionProperty_OtherAudioIsPlaying:                     // UInt32           (get only)
+        case kAudioSessionProperty_OtherMixableAudioShouldDuck:             // UInt32           (get/set)
+        case kAudioSessionProperty_OverrideAudioRoute:                      // UInt32           (set only)
+        case kAudioSessionProperty_OverrideCategoryDefaultToSpeaker:        // UInt32           (get, some set)
+        case kAudioSessionProperty_OverrideCategoryEnableBluetoothInput:    // UInt32           (get, some set)
+        case kAudioSessionProperty_OverrideCategoryMixWithOthers:           // UInt32           (get, some set)
+        case kAudioSessionProperty_ServerDied:                              // UInt32           (property listener)
+
+            assert (data_size == sizeof (UInt32));
+            return [NSNumber numberWithUnsignedInt: *(UInt32*)data];
+
+        case kAudioSessionProperty_CurrentHardwareIOBufferDuration:         // Float32          (get only)
+        case kAudioSessionProperty_CurrentHardwareInputLatency:             // Float32          (get only)
+        case kAudioSessionProperty_CurrentHardwareOutputLatency:            // Float32          (get only)
+        case kAudioSessionProperty_CurrentHardwareOutputVolume:             // Float32          (get only/property listener)
+        case kAudioSessionProperty_PreferredHardwareIOBufferDuration:       // Float32          (get/set)
+
+            assert (data_size == sizeof (Float32));
+            return [NSNumber numberWithFloat: *(Float32*)data];
+    }
+
+    return nil;
 }
 
 /* EOF */
