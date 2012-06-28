@@ -5,7 +5,7 @@
  ****************************************************************************/
 #import <UIKit/UIKit.h>
 
-#define NTF_AUDIO_SESSION_PROPERTY_CHANGED @"AUDIO_SESSION_PROPERTY_CHANGED"
+//#define NTF_AUDIO_SESSION_PROPERTY_CHANGED @"AUDIO_SESSION_PROPERTY_CHANGED"
 #define NTF_AUDIO_SESSION_INTERRUPTION     @"AUDIO_SESSION_INTERRUPTION"
 
 
@@ -22,8 +22,14 @@
 
 - (OSStatus) setActive: (BOOL) active;
 
-- (OSStatus) startListeningForProperty: (UInt32) prop_id;
-- (OSStatus) stopListeningForProperty: (UInt32) prop_id;
+- (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
+             forProperty: (UInt32) prop_id;
+
+- (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
+                forProperty: (UInt32) prop_id;
+
+// - (OSStatus) startListeningForProperty: (UInt32) prop_id;
+// - (OSStatus) stopListeningForProperty: (UInt32) prop_id;
 
 - (NSString*) audioRoute;
 - (OSStatus) setCategory: (UInt32) cat;
