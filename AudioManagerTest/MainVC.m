@@ -5,7 +5,7 @@
  ****************************************************************************/
 
 #import "MainVC.h"
-#import "AudioManager.h"
+#import "AudioPlayer.h"
 #import <MediaPlayer/MediaPlayer.h>
 
 #define ADD_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, SEL$, OBJ$)               \
@@ -77,7 +77,7 @@
 //----------------------------------------------------------------------------
 - (void) syncSlider
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     double dur = [amgr duration];
 
     double time = ((isfinite (dur) && (dur > 0))
@@ -105,7 +105,7 @@
 {
     [super viewWillAppear: animated];
     [self updateUI];
-    [AudioManager sharedManager].periodicTimerInterval = 0.5;
+    [AudioPlayer sharedPlayer].periodicTimerInterval = 0.5;
     
     ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_COMPLETED, self, onPlayCompleted:);
     ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_TIMER,     self, onPlayTimer:);
@@ -122,7 +122,7 @@
 //----------------------------------------------------------------------------
 - (IBAction) onRefresh: (id) sender 
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     [amgr reset];
     [self updateUI];
 }
@@ -136,7 +136,7 @@
 //----------------------------------------------------------------------------
 - (IBAction) onTogglePlay: (id) sender 
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
 
     if (amgr.playing) [amgr pause];
     else              [amgr play];
@@ -147,7 +147,7 @@
 //----------------------------------------------------------------------------
 - (IBAction) onBeginPlaySliding: (id) sender
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     amgr.periodicTimerInterval = 0;
 }
 
@@ -155,7 +155,7 @@
 //----------------------------------------------------------------------------
 - (IBAction) onEndPlaySliding: (id) sender
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     amgr.periodicTimerInterval = 0.5;
 }
 
@@ -163,7 +163,7 @@
 //----------------------------------------------------------------------------
 - (IBAction) onPlaySliderChanged: (id) sender
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     double duration = [amgr duration];
 
     double  time = self.playSlider.value;
@@ -203,7 +203,7 @@
 //----------------------------------------------------------------------------
 - (void) setupTogglePlayBtn: (BOOL) enabled
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
 
     self.togglePlayBtn.enabled = enabled;
     self.togglePlayBtn.image = [UIImage imageNamed: (amgr.playing ? @"stop" : @"play")];
@@ -212,7 +212,7 @@
 //----------------------------------------------------------------------------
 - (void) preparePlayerForSelectedRow
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
 
     [amgr pause]; 
     [amgr seekToTime: 0];
@@ -275,7 +275,7 @@
 //----------------------------------------------------------------------------
 - (void) onPlayCompleted: (NSNotification*) ntf
 {
-    AudioManager* amgr = [AudioManager sharedManager];
+    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
 
     [amgr seekToTime: 0];
     self.playSlider.value = 0;

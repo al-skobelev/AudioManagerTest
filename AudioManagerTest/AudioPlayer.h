@@ -29,7 +29,7 @@
 #define NTF_AUDIO_MANAGER_STATE_CHANGED  @"AUDIO_MANAGER_STATE_CHANGED"
 
 //============================================================================
-@interface AudioManager : NSObject
+@interface AudioPlayer : NSObject
 
 @property (readonly) BOOL playing;
 
@@ -37,7 +37,7 @@
 @property (assign, nonatomic) double periodicTimerInterval;
 
 
-+ (AudioManager*) sharedManager;
++ (AudioPlayer*) sharedPlayer;
 
 - (void) reset; // is it neccessary?
 

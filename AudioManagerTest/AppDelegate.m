@@ -8,7 +8,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 
-#import "AudioManager.h"
+#import "AudioPlayer.h"
 
 //============================================================================
 @interface AppDelegate ()
@@ -50,9 +50,9 @@
 //----------------------------------------------------------------------------
 - (void) beginInterruption
 {
-    if ([AudioManager sharedManager].playing)
+    if ([AudioPlayer sharedPlayer].playing)
     {
-        [[AudioManager sharedManager] pause];
+        [[AudioPlayer sharedPlayer] pause];
         self.resumePlayback = YES;
     }
 }
@@ -65,7 +65,7 @@
         [self setupAudioSession];
         if (self.resumePlayback)
         {
-            [[AudioManager sharedManager] play];
+            [[AudioPlayer sharedPlayer] play];
             self.resumePlayback = NO;
         }
     }

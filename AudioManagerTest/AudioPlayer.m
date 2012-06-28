@@ -3,7 +3,7 @@
  * Created by Alexander Skobelev                                            *
  *                                                                          *
  ****************************************************************************/
-#import "AudioManager.h"
+#import "AudioPlayer.h"
 
 #define LOG(FMT$, ARGS$...) NSLog (@"%s -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 #define ELOG(FMT$, ARGS$...) NSLog (@"%s -- ERROR -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
@@ -20,7 +20,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 
 
 //============================================================================
-@interface AudioManager ()
+@interface AudioPlayer ()
 
 @property (strong, nonatomic) AVPlayer* player;
 @property (strong, nonatomic) AVPlayerItem* playerItem;
@@ -30,7 +30,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 @end
 
 //============================================================================
-@implementation AudioManager 
+@implementation AudioPlayer 
 
 @synthesize player     = _player;
 @synthesize playerItem = _playerItem;
@@ -39,7 +39,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 @synthesize timer = _timer;
 
 //----------------------------------------------------------------------------
-+ (AudioManager*) sharedManager
++ (AudioPlayer*) sharedPlayer
 {
     static dispatch_once_t _s_once;
     static id _s_obj = nil;
@@ -365,7 +365,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     {
         CMTime cmtime = CMTimeMakeWithSeconds (_periodicTimerInterval, NSEC_PER_SEC);
 
-        AudioManager* __weak self_weak = self;
+        AudioPlayer* __weak self_weak = self;
         
         self.timer = 
             [self.player 
