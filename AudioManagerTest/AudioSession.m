@@ -19,40 +19,47 @@
                        (((N$) << 24) & 0xff000000))
 #endif
 
-static id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size);
+static int    prop_data_type      (UInt32 prop_id);
+static UInt32 prop_data_size      (UInt32 prop_id);
+static UInt32 prop_data_type_size (int prop_data_type);
+
+static id   prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size);
+static BOOL get_prop_value_raw_data  (UInt32 prop_id, id value, void* data, UInt32* data_size);
+
 static void interruption_listener (void* data, UInt32 inInterruptionState);
 
 static void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
                                UInt32 data_size, const void* data);
 
 
+enum prop_data_types {
+    PROP_DATA_TYPE_UNKNOWN,
+    PROP_DATA_TYPE_STRING,
+    PROP_DATA_TYPE_DICT,
+    PROP_DATA_TYPE_UINT32,
+    PROP_DATA_TYPE_FLOAT32,
+    PROP_DATA_TYPE_FLOAT64,
+};
+
+typedef union {
+    CFStringRef     string;
+    CFDictionaryRef dict;
+    UInt32          uint32; 
+    Float32         float32;
+    Float64         float64;
+
+} raw_data_t;
+
 //============================================================================
 @interface AudioSession ()
 
-// @property (strong, nonatomic) NSCountedSet* listenedProperties;
 @property (assign, nonatomic) BOOL activated;
 @end
 
 //============================================================================
 @implementation AudioSession
 
-// @synthesize listenedProperties = _listenedProperties;
 @synthesize activated = _activated;
-
-//----------------------------------------------------------------------------
-// + initialize
-// {
-//     [[self sharedInstance] initializeSession];
-// }
-
-//----------------------------------------------------------------------------
-- init
-{
-    if (! (self = [super init])) return nil;
-    
-    // self.listenedProperties = [NSCountedSet new];
-    return self;
-}
 
 //----------------------------------------------------------------------------
 + (AudioSession*) sharedInstance
@@ -64,47 +71,14 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     return _s_obj;
 }
 
-// //----------------------------------------------------------------------------
-// - (OSStatus) startListeningForProperty: (UInt32) prop_id
-// {
-//     id obj = [NSNumber numberWithUnsignedInt: prop_id];
-//     [self.listenedProperties addObject: obj];
-//     if (0 == [self.listenedProperties countForObject: obj])
-//     {
-//         OSStatus status = AudioSessionAddPropertyListener (prop_id, listener, NULL);
-//         if (status != 0)
-//         {
-//             uint32_t ecode = SWAP_CODE(status);
-//             uint32_t pcode = SWAP_CODE(prop_id);
+//----------------------------------------------------------------------------
+- init
+{
+    if (! (self = [super init])) return nil;
 
-//             ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
-//             return status;
-//         }
-//     }
-//     [self.listenedProperties addObject: obj];
-//     return 0;
-// }
-// //----------------------------------------------------------------------------
-// - (OSStatus) stopListeningForProperty: (UInt32) prop_id
-// {
-//     id obj = [NSNumber numberWithUnsignedInt: prop_id];
-
-//     [self.listenedProperties removeObject: obj];
-//     if (0 == [self.listenedProperties countForObject: obj])
-//     {
-//         OSStatus status = AudioSessionRemovePropertyListener (prop_id);
-//         if (status != 0)
-//         {
-//             uint32_t ecode = SWAP_CODE(status);
-//             uint32_t pcode = SWAP_CODE(prop_id);
-
-//             ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
-//             return status;
-//         }
-//     }
-
-//     return 0;
-// }
+    (void)[self initializeSession];
+    return self;
+}
 
 //----------------------------------------------------------------------------
 - (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
@@ -113,10 +87,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, (__bridge void*)listener);
     if (status != 0)
     {
-        uint32_t ecode = SWAP_CODE(status);
-        uint32_t pcode = SWAP_CODE(prop_id);
-        
-        ELOG(@"AudioSessionAddPropertyListener (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+        ELOG(@"AudioSessionAddPropertyListener (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
         return status;
     }
     return 0;
@@ -127,12 +98,8 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
                 forProperty: (UInt32) prop_id
 {
     OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, (__bridge void*)listener);
-    if (status != 0)
-    {
-        uint32_t ecode = SWAP_CODE(status);
-        uint32_t pcode = SWAP_CODE(prop_id);
-        
-        ELOG(@"AudioSessionRemovePropertyListenerWithUserData (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+    if (status != 0) {
+        ELOG(@"AudioSessionRemovePropertyListenerWithUserData (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
         return status;
     }
     return 0;
@@ -146,12 +113,8 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     assert (prop);
 
     OSStatus status = AudioSessionGetProperty (prop_id, &prop_size, prop);
-
-    if (status != 0)
-    {
-        uint32_t ecode = SWAP_CODE(status);
-        uint32_t pcode = SWAP_CODE(prop_id);
-        ELOG(@"AudioSessionGetProperty ('%.4s') failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+    if (status != 0) {
+        ELOG(@"AudioSessionGetProperty (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
     }
 
     return status;
@@ -164,29 +127,46 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 {
     assert (prop);
     OSStatus status = AudioSessionSetProperty (prop_id, prop_size, prop);
-    if (status != 0)
+    if (status != 0) {
+        ELOG(@"AudioSessionSetProperty (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
+    }
+    return status;
+}
+
+//----------------------------------------------------------------------------
+- (id) valueForProperty: (UInt32) prop_id
+{
+    raw_data_t data;
+    
+    UInt32 data_size = prop_data_size (prop_id);
+    
+    OSStatus status = [self getRawValue: &data
+                                 ofSize: data_size
+                            forProperty: prop_id];
+    
+    id val = (0 == status) ? prop_value_from_raw_data (prop_id, &data, data_size) : nil;
+    return val;
+}
+
+
+//----------------------------------------------------------------------------
+- (OSStatus) setValue: (id) val
+          forProperty: (UInt32) prop_id
+{
+    OSStatus status = -1;
+    raw_data_t data;
+    UInt32 data_size;
+
+    if (get_prop_value_raw_data (prop_id, val, &data, &data_size))
     {
-        uint32_t ecode = SWAP_CODE(status);
-        uint32_t pcode = SWAP_CODE(prop_id);
-        ELOG(@"AudioSessionGetProperty (%.4s) failed with error: '%.4s'\n", (const char*) &pcode, (const char*) &ecode);
+        status = [self  setRawValue: &data
+                             ofSize: data_size
+                        forProperty: prop_id];
     }
     return status;
 }
 
 
-//----------------------------------------------------------------------------
-- (BOOL) enableLoudspeaker: (BOOL)  enable
-{
-    UInt32 prop = (enable 
-                   ? kAudioSessionOverrideAudioRoute_Speaker 
-                   : kAudioSessionOverrideAudioRoute_None);
-
-    UInt32 prop_size = sizeof (prop);
-
-    return (0 == [self setRawValue: &prop
-                            ofSize: prop_size
-                       forProperty: kAudioSessionProperty_OverrideAudioRoute]);
-}
 
 //----------------------------------------------------------------------------
 - (NSString*) audioRoute
@@ -206,21 +186,30 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 }
 
 //----------------------------------------------------------------------------
+- (UInt32) category
+{
+    UInt32 cat = 0;
+    [self getRawValue: &cat
+               ofSize: sizeof(cat)
+          forProperty: kAudioSessionProperty_AudioCategory];
+    
+    return cat;
+}
+
+//----------------------------------------------------------------------------
 - (OSStatus) setCategory: (UInt32) cat
 {
-    UInt32 old_cat = 0;
-    OSStatus status = [self getRawValue: &old_cat
-                                 ofSize: sizeof(old_cat)
-                            forProperty: kAudioSessionProperty_AudioCategory];
+    OSStatus status = -1;
 
-    if (status && (old_cat != cat)) {
+    if ([self category] != cat)
+    {
         status = [self setRawValue: &cat 
                             ofSize: sizeof(cat)
                        forProperty: kAudioSessionProperty_AudioCategory];
     }
-        
     return status;
 }
+
 
 
 //----------------------------------------------------------------------------
@@ -229,6 +218,22 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     NSString* route = [self audioRoute];
     return (route && ! [route hasPrefix: @"Headset"]);
 }
+
+
+//----------------------------------------------------------------------------
+- (BOOL) setLoudspeakerEnabled: (BOOL)  enable
+{
+    UInt32 prop = (enable 
+                   ? kAudioSessionOverrideAudioRoute_Speaker 
+                   : kAudioSessionOverrideAudioRoute_None);
+
+    UInt32 prop_size = sizeof (prop);
+
+    return (0 == [self setRawValue: &prop
+                            ofSize: prop_size
+                       forProperty: kAudioSessionProperty_OverrideAudioRoute]);
+}
+
 
 //----------------------------------------------------------------------------
 - (OSStatus) setActive: (BOOL) active
@@ -244,8 +249,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     }
 
     if (status != 0) {
-        uint32_t code = SWAP_CODE(status);
-        ELOG(@"Failed to set Audio Session %sactive. Error: '%.4s'\n", active ? "" : "in", (const char*) &code);
+        ELOG(@"Failed to set Audio Session %sactive. Error: '%@'\n", active ? "" : "in", fccode_to_string (status));
     }
     else {
         self.activated = active;
@@ -266,10 +270,10 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     OSStatus status = AudioSessionInitialize (NULL, NULL,                    
                                               interruption_listener,
                                               NULL);  
+
     if (status && (status != kAudioSessionAlreadyInitialized)) 
     {
-        uint32_t code = SWAP_CODE(status);
-        ELOG(@"Failed to initialize Audio Session. error: '%.4s'\n", (const char*) &code);
+        ELOG(@"Failed to initialize Audio Session. error: '%@'\n", fccode_to_string (status));
     }
 
     return status;
@@ -279,84 +283,13 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 - (void) handleInterruption: (UInt32) state
 {
     id info = [NSDictionary dictionaryWithObject: [NSNumber numberWithUnsignedInt: state]
-                                          forKey: STATE_KEY];
+                                          forKey: AUDIO_SESSION_STATE_KEY];
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName: NTF_AUDIO_SESSION_INTERRUPTION
                       object: self
                     userInfo: info];
 }
-
-//----------------------------------------------------------------------------
-- (id) valueOfProperty: (UInt32) prop_id
-        fromRawDataPtr: (void*) data
-              dataSize: (UInt32) data_size
-{
-    switch (prop_id)
-    {
-        case kAudioSessionProperty_AudioRoute:                              // CFStringRef      (get only)
-
-            assert (data_size == sizeof (id));
-            return CFBridgingRelease (*(void**)data);
-
-        case kAudioSessionProperty_AudioRouteChange:                        // CFDictionaryRef  (property listener)
-
-            assert (data_size == sizeof (id));
-            return CFBridgingRelease (*(void**)data);
-
-        case kAudioSessionProperty_CurrentHardwareSampleRate:               // Float64          (get only)
-        case kAudioSessionProperty_PreferredHardwareSampleRate:             // Float64          (get/set)
-
-            assert (data_size == sizeof (Float64));
-            return [NSNumber numberWithDouble: *(Float64*)data];
-
-        case kAudioSessionProperty_AudioCategory:                           // UInt32           (get/set)
-        case kAudioSessionProperty_AudioInputAvailable:                     // UInt32           (get only/property listener)
-        case kAudioSessionProperty_CurrentHardwareInputNumberChannels:      // UInt32           (get only)
-        case kAudioSessionProperty_CurrentHardwareOutputNumberChannels:     // UInt32           (get only)
-        case kAudioSessionProperty_OtherAudioIsPlaying:                     // UInt32           (get only)
-        case kAudioSessionProperty_OtherMixableAudioShouldDuck:             // UInt32           (get/set)
-        case kAudioSessionProperty_OverrideAudioRoute:                      // UInt32           (set only)
-        case kAudioSessionProperty_OverrideCategoryDefaultToSpeaker:        // UInt32           (get, some set)
-        case kAudioSessionProperty_OverrideCategoryEnableBluetoothInput:    // UInt32           (get, some set)
-        case kAudioSessionProperty_OverrideCategoryMixWithOthers:           // UInt32           (get, some set)
-        case kAudioSessionProperty_ServerDied:                              // UInt32           (property listener)
-
-            assert (data_size == sizeof (UInt32));
-            return [NSNumber numberWithUnsignedInt: *(UInt32*)data];
-
-        case kAudioSessionProperty_CurrentHardwareIOBufferDuration:         // Float32          (get only)
-        case kAudioSessionProperty_CurrentHardwareInputLatency:             // Float32          (get only)
-        case kAudioSessionProperty_CurrentHardwareOutputLatency:            // Float32          (get only)
-        case kAudioSessionProperty_CurrentHardwareOutputVolume:             // Float32          (get only/property listener)
-        case kAudioSessionProperty_PreferredHardwareIOBufferDuration:       // Float32          (get/set)
-
-            assert (data_size == sizeof (Float32));
-            return [NSNumber numberWithFloat: *(Float32*)data];
-    }
-
-    return nil;
-}
-
-//----------------------------------------------------------------------------
-// - (void) handleChangeOfPropery: (UInt32) prop_id
-//                   propertyData: (void*)  data
-//                       dataSize: (UInt32) data_size
-// {
-//     id val = [self valueOfProperty: prop_id
-//                     fromRawDataPtr: data
-//                           dataSize: data_size];
-
-//     id info = [NSDictionary dictionaryWithObjectsAndKeys: 
-//                                 [NSNumber numberWithUnsignedInt: prop_id], PROP_ID_KEY,
-//                                 val, VALUE_KEY,
-//                                 nil];
-
-//     [[NSNotificationCenter defaultCenter]
-//         postNotificationName: NTF_AUDIO_SESSION_PROPERTY_CHANGED
-//                       object: self
-//                     userInfo: info];
-// }
 
 //----------------------------------------------------------------------------
 - (void) handleChangeOfPropery: (UInt32) prop_id
@@ -376,7 +309,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 //----------------------------------------------------------------------------
 void interruption_listener (void* data, UInt32 interruptionState)
 {
-    dispatch_async (dispatch_get_main_queue(), ^{
+    dispatch_after (dispatch_time (DISPATCH_TIME_NOW,  0.1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             [[AudioSession sharedInstance] handleInterruption: interruptionState]; });
 }
 
@@ -391,32 +324,25 @@ void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
 
             [obj handleChangeOfPropery: prop_id
                               withInfo: info]; });
-
-            // [[AudioSession sharedInstance] handleChangeOfPropery: prop_id
-            //                                         propertyData: data
-            //                                             dataSise: data_size]; });
 }
 
 //----------------------------------------------------------------------------
-id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
+int prop_data_type (UInt32 prop_id)
 {
     switch (prop_id)
     {
         case kAudioSessionProperty_AudioRoute:                              // CFStringRef      (get only)
 
-            assert (data_size == sizeof (id));
-            return CFBridgingRelease (*(void**)data);
+            return PROP_DATA_TYPE_STRING;
 
         case kAudioSessionProperty_AudioRouteChange:                        // CFDictionaryRef  (property listener)
 
-            assert (data_size == sizeof (id));
-            return CFBridgingRelease (*(void**)data);
+            return PROP_DATA_TYPE_DICT;
 
         case kAudioSessionProperty_CurrentHardwareSampleRate:               // Float64          (get only)
         case kAudioSessionProperty_PreferredHardwareSampleRate:             // Float64          (get/set)
 
-            assert (data_size == sizeof (Float64));
-            return [NSNumber numberWithDouble: *(Float64*)data];
+            return PROP_DATA_TYPE_FLOAT64;
 
         case kAudioSessionProperty_AudioCategory:                           // UInt32           (get/set)
         case kAudioSessionProperty_AudioInputAvailable:                     // UInt32           (get only/property listener)
@@ -430,8 +356,7 @@ id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
         case kAudioSessionProperty_OverrideCategoryMixWithOthers:           // UInt32           (get, some set)
         case kAudioSessionProperty_ServerDied:                              // UInt32           (property listener)
 
-            assert (data_size == sizeof (UInt32));
-            return [NSNumber numberWithUnsignedInt: *(UInt32*)data];
+            return PROP_DATA_TYPE_UINT32;
 
         case kAudioSessionProperty_CurrentHardwareIOBufferDuration:         // Float32          (get only)
         case kAudioSessionProperty_CurrentHardwareInputLatency:             // Float32          (get only)
@@ -439,11 +364,108 @@ id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
         case kAudioSessionProperty_CurrentHardwareOutputVolume:             // Float32          (get only/property listener)
         case kAudioSessionProperty_PreferredHardwareIOBufferDuration:       // Float32          (get/set)
 
+            return PROP_DATA_TYPE_FLOAT32;
+    }
+
+    return PROP_DATA_TYPE_UNKNOWN;
+}
+
+//----------------------------------------------------------------------------
+id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
+{
+    int dtype = prop_data_type (prop_id);
+
+    switch (dtype)
+    {
+        case PROP_DATA_TYPE_STRING:
+        case PROP_DATA_TYPE_DICT:
+
+            assert (data_size == sizeof (id));
+            return CFBridgingRelease (*(void**)data);
+
+        case PROP_DATA_TYPE_UINT32:
+
+            assert (data_size == sizeof (UInt32));
+            return [NSNumber numberWithUnsignedInt: *(UInt32*)data];
+
+        case PROP_DATA_TYPE_FLOAT32:
+
             assert (data_size == sizeof (Float32));
             return [NSNumber numberWithFloat: *(Float32*)data];
+
+        case PROP_DATA_TYPE_FLOAT64:
+
+            assert (data_size == sizeof (Float64));
+            return [NSNumber numberWithDouble: *(Float64*)data];
     }
 
     return nil;
+}
+
+//----------------------------------------------------------------------------
+BOOL get_prop_value_raw_data (UInt32 prop_id, id value, void* data, UInt32* data_size)
+{
+    assert (data && data_size);
+
+    int dtype = prop_data_type (prop_id);
+
+    switch (dtype)
+    {
+        case PROP_DATA_TYPE_STRING:
+            *(CFStringRef*)data = (__bridge void*) value;
+            *data_size = sizeof (CFStringRef);
+            return YES;
+
+        case PROP_DATA_TYPE_DICT:
+
+            *(CFDictionaryRef*)data = (__bridge void*) value;
+            *data_size = sizeof (CFDictionaryRef);
+            return YES;
+            
+        case PROP_DATA_TYPE_UINT32:
+
+            *(UInt32*)data = [value unsignedIntValue];
+            *data_size = sizeof(UInt32);
+            return YES;
+
+        case PROP_DATA_TYPE_FLOAT32:
+
+            *(Float32*)data = [value floatValue];
+            *data_size = sizeof(Float32);
+            return YES;
+
+        case PROP_DATA_TYPE_FLOAT64:
+
+            *(Float64*)data = [value doubleValue];
+            *data_size = sizeof(Float64);
+            return YES;
+            
+        default:
+            return NO;
+    }
+}
+
+//----------------------------------------------------------------------------
+UInt32 prop_data_type_size (int dtype)
+{
+    return ((dtype == PROP_DATA_TYPE_STRING)  ? sizeof (CFStringRef) :
+            (dtype == PROP_DATA_TYPE_DICT)    ? sizeof (CFDictionaryRef) :
+            (dtype == PROP_DATA_TYPE_UINT32)  ? sizeof (UInt32) :
+            (dtype == PROP_DATA_TYPE_FLOAT32) ? sizeof (Float32) :
+            (dtype == PROP_DATA_TYPE_FLOAT64) ? sizeof (Float64) :
+            0);
+}
+//----------------------------------------------------------------------------
+UInt32 prop_data_size (UInt32 prop_id)
+{
+    return prop_data_type_size (prop_data_type (prop_id));
+}
+
+//----------------------------------------------------------------------------
+NSString* fccode_to_string (UInt32 code)
+{
+    code = SWAP_CODE(code);
+    return [NSString stringWithFormat: @"%.4s", (const char*) &code];
 }
 
 /* EOF */

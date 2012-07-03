@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D974B5E615A144DA00751ABE /* AudioSession.m in Sources */ = {isa = PBXBuildFile; fileRef = D974B5E515A144DA00751ABE /* AudioSession.m */; };
+		D9A8E1B515A310D000BDE877 /* audio in Resources */ = {isa = PBXBuildFile; fileRef = D9A8E1B415A310D000BDE877 /* audio */; };
+		D9A8E1B815A3121E00BDE877 /* CommonUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = D9A8E1B715A3121E00BDE877 /* CommonUtils.m */; };
 		D9B8B6C0159989860018B43D /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = D9B8B6BF159989860018B43D /* AudioPlayer.m */; };
 		D9B8B6C1159989860018B43D /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = D9B8B6BF159989860018B43D /* AudioPlayer.m */; };
 		D9B8B6C415999C9B0018B43D /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9B8B6C315999C9B0018B43D /* AVFoundation.framework */; };
@@ -42,6 +45,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D974B5E415A144DA00751ABE /* AudioSession.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioSession.h; sourceTree = "<group>"; };
+		D974B5E515A144DA00751ABE /* AudioSession.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioSession.m; sourceTree = "<group>"; };
+		D9A8E1B415A310D000BDE877 /* audio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = audio; sourceTree = "<group>"; };
+		D9A8E1B615A3121E00BDE877 /* CommonUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CommonUtils.h; sourceTree = "<group>"; };
+		D9A8E1B715A3121E00BDE877 /* CommonUtils.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CommonUtils.m; sourceTree = "<group>"; };
 		D9B8B6BE159989860018B43D /* AudioPlayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioPlayer.h; sourceTree = "<group>"; };
 		D9B8B6BF159989860018B43D /* AudioPlayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioPlayer.m; sourceTree = "<group>"; };
 		D9B8B6C315999C9B0018B43D /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
@@ -103,6 +111,7 @@
 		D9B8B6C71599A2690018B43D /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				D9A8E1B415A310D000BDE877 /* audio */,
 				D9B8B6CC1599C6B40018B43D /* play@2x.png */,
 				D9B8B6C81599AD820018B43D /* play.png */,
 				D9B8B6C91599AD820018B43D /* stop.png */,
@@ -148,6 +157,10 @@
 		D9D7DECF15984B6F00A740ED /* AudioManagerTest */ = {
 			isa = PBXGroup;
 			children = (
+				D9A8E1B615A3121E00BDE877 /* CommonUtils.h */,
+				D9A8E1B715A3121E00BDE877 /* CommonUtils.m */,
+				D974B5E415A144DA00751ABE /* AudioSession.h */,
+				D974B5E515A144DA00751ABE /* AudioSession.m */,
 				D9B8B6BE159989860018B43D /* AudioPlayer.h */,
 				D9B8B6BF159989860018B43D /* AudioPlayer.m */,
 				D9D7DED815984B6F00A740ED /* AppDelegate.h */,
@@ -265,6 +278,7 @@
 				D9B8B6CA1599AD820018B43D /* play.png in Resources */,
 				D9B8B6CB1599AD820018B43D /* stop.png in Resources */,
 				D9B8B6CD1599C6B40018B43D /* play@2x.png in Resources */,
+				D9A8E1B515A310D000BDE877 /* audio in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,6 +317,8 @@
 				D9D7DEDA15984B6F00A740ED /* AppDelegate.m in Sources */,
 				D9D7DEE015984B6F00A740ED /* MainVC.m in Sources */,
 				D9B8B6C0159989860018B43D /* AudioPlayer.m in Sources */,
+				D974B5E615A144DA00751ABE /* AudioSession.m in Sources */,
+				D9A8E1B815A3121E00BDE877 /* CommonUtils.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

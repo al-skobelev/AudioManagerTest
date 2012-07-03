@@ -92,10 +92,11 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     [asset loadValuesAsynchronouslyForKeys: keys
                          completionHandler: 
 
-               ^{ dispatch_async (dispatch_get_main_queue(), 
-                                  (^{ [self prepareToPlayAsset: asset 
-                                                      withKeys: keys
-                                             completionHandler: handler]; })); }];
+               ^{ dispatch_async (dispatch_get_main_queue(), ^{ 
+
+                    [self prepareToPlayAsset: asset 
+                                    withKeys: keys
+                           completionHandler: handler]; }); }];
     return YES;
 }
 

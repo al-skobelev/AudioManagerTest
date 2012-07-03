@@ -7,6 +7,7 @@
 #import "AppDelegate.h"
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import "CommonUtils.h"
 
 #import "AudioPlayer.h"
 
@@ -23,28 +24,53 @@
 @synthesize window = _window;
 @synthesize inBackground = _inBackground;
 
+// //----------------------------------------------------------------------------
+// - (void) setupAudioSession
+// {
+//     //AudioSessionInitialize (NULL, NULL, NULL, NULL);
+//     NSError* err = nil;
+//     AVAudioSession* as = [AVAudioSession sharedInstance];
+
+//     as.delegate = self;
+
+//     if (! [as setCategory: AVAudioSessionCategoryPlayback
+//                     error: &err])
+//     {
+//         NSLog(@"ERROR: Failed to set playback audio category. %@", [err localizedDescription]);
+//     }
+
+//     //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
+//     if (! [as setActive: YES
+//                   error: &err])
+//     {
+//         NSLog(@"ERROR: Failed to set audio session active. %@", [err localizedDescription]);
+//     }
+
+// }
+
 //----------------------------------------------------------------------------
 - (void) setupAudioSession
 {
     //AudioSessionInitialize (NULL, NULL, NULL, NULL);
-    NSError* err = nil;
-    AVAudioSession* as = [AVAudioSession sharedInstance];
+    AudioSession* as = [AudioSession sharedInstance];
 
-    as.delegate = self;
+    [[NSNotificationCenter defaultCenter]
+        addObserver: self
+           selector: @selector(onAudioInterruption:)
+               name: NTF_AUDIO_SESSION_INTERRUPTION
+             object: nil];
 
-    if (! [as setCategory: AVAudioSessionCategoryPlayback
-                    error: &err])
+    OSStatus status = [as setCategory: kAudioSessionCategory_MediaPlayback];
+    if (status != 0)
     {
-        NSLog(@"ERROR: Failed to set playback audio category. %@", [err localizedDescription]);
+        NSLog(@"ERROR: Failed to set playback audio category.");
     }
 
     //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
-    if (! [as setActive: YES
-                  error: &err])
+    if (0 != [as setActive: YES])
     {
-        NSLog(@"ERROR: Failed to set audio session active. %@", [err localizedDescription]);
+        NSLog(@"ERROR: Failed to set audio session active.");
     }
-
 }
 
 //----------------------------------------------------------------------------
@@ -72,12 +98,46 @@
 }
 
 //----------------------------------------------------------------------------
+- (void) onAudioInterruption: (NSNotification*) ntf
+{
+    int state = [[[ntf userInfo] objectForKey: AUDIO_SESSION_STATE_KEY] intValue];
+    
+    if (state == kAudioSessionBeginInterruption)
+    {
+        [self beginInterruption];
+    }
+    else {
+        [self endInterruption];
+    }
+}
+
+//----------------------------------------------------------------------------
+- (void) handleChangeOfPropery: (UInt32) prop_id
+                      withInfo: (id) info
+{
+    NSLog (@"Property '%@' changed with info: %@", fccode_to_string (prop_id), info);
+}
+
+//----------------------------------------------------------------------------
 - (BOOL) application: (UIApplication*) application
   didFinishLaunchingWithOptions: (NSDictionary*) launchOptions
 {
     [self setupAudioSession];
     [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
-    // Override point for customization after application launch.
+
+    NSString* docpath = user_documents_path();
+    NSArray* files = [[NSBundle mainBundle] 
+                         pathsForResourcesOfType: @"wav"
+                                     inDirectory: @"audio"];
+
+    for (NSString* fpath in files)
+    {
+        [[NSFileManager defaultManager]
+            copyItemAtPath: fpath 
+                    toPath: STR_ADDPATH (docpath, [fpath lastPathComponent]) 
+                     error: NULL];
+    }
+
     return YES;
 }
 							
@@ -125,6 +185,7 @@
     // Called when the application is about to terminate. Save data if
     // appropriate. See also applicationDidEnterBackground:.
 }
+
 
 @end
 /* EOF */
