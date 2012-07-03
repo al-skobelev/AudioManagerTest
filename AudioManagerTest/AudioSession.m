@@ -6,6 +6,7 @@
 
 #import "AudioSession.h"
 
+
 #define LOG(FMT$, ARGS$...) NSLog (@"%s -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 #define ELOG(FMT$, ARGS$...) NSLog (@"%s -- ERROR -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 
@@ -29,14 +30,14 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 @interface AudioSession ()
 
 // @property (strong, nonatomic) NSCountedSet* listenedProperties;
-@property (assign, nonatomic) BOOL active;
+@property (assign, nonatomic) BOOL activated;
 @end
 
 //============================================================================
 @implementation AudioSession
 
 // @synthesize listenedProperties = _listenedProperties;
-@synthesize active = _active;
+@synthesize activated = _activated;
 
 //----------------------------------------------------------------------------
 // + initialize
@@ -109,7 +110,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 - (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
              forProperty: (UInt32) prop_id
 {
-    OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, listener);
+    OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, (__bridge void*)listener);
     if (status != 0)
     {
         uint32_t ecode = SWAP_CODE(status);
@@ -125,7 +126,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 - (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
                 forProperty: (UInt32) prop_id
 {
-    OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, listener);
+    OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, (__bridge void*)listener);
     if (status != 0)
     {
         uint32_t ecode = SWAP_CODE(status);
@@ -247,7 +248,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
         ELOG(@"Failed to set Audio Session %sactive. Error: '%.4s'\n", active ? "" : "in", (const char*) &code);
     }
     else {
-        self.active = active;
+        self.activated = active;
 
         if (active) [self addListener: self
                           forProperty: kAudioSessionProperty_ServerDied];
@@ -265,7 +266,7 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
     OSStatus status = AudioSessionInitialize (NULL, NULL,                    
                                               interruption_listener,
                                               NULL);  
-    if (status && (status != kAudioSessionAlreadyInitialized))) 
+    if (status && (status != kAudioSessionAlreadyInitialized)) 
     {
         uint32_t code = SWAP_CODE(status);
         ELOG(@"Failed to initialize Audio Session. error: '%.4s'\n", (const char*) &code);
@@ -296,12 +297,12 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
         case kAudioSessionProperty_AudioRoute:                              // CFStringRef      (get only)
 
             assert (data_size == sizeof (id));
-            return CFBridgingRelease (*data);
+            return CFBridgingRelease (*(void**)data);
 
         case kAudioSessionProperty_AudioRouteChange:                        // CFDictionaryRef  (property listener)
 
             assert (data_size == sizeof (id));
-            return CFBridgingRelease (*data);
+            return CFBridgingRelease (*(void**)data);
 
         case kAudioSessionProperty_CurrentHardwareSampleRate:               // Float64          (get only)
         case kAudioSessionProperty_PreferredHardwareSampleRate:             // Float64          (get/set)
@@ -357,11 +358,23 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 //                     userInfo: info];
 // }
 
+//----------------------------------------------------------------------------
+- (void) handleChangeOfPropery: (UInt32) prop_id
+                      withInfo: (id) info
+{
+    if (prop_id == kAudioSessionProperty_ServerDied)
+    {
+        if (self.activated) {
+            [self setActive: NO];
+            [self setActive: YES];
+        }
+    }
+}
 
 @end
 
 //----------------------------------------------------------------------------
-void interruption_listener (void* data, UInt32 inInterruptionState)
+void interruption_listener (void* data, UInt32 interruptionState)
 {
     dispatch_async (dispatch_get_main_queue(), ^{
             [[AudioSession sharedInstance] handleInterruption: interruptionState]; });
@@ -373,8 +386,8 @@ void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
 {
     dispatch_sync (dispatch_get_main_queue(), ^{
             
-            id info = prop_value_from_raw_data (prop_id, data, data_size);
-            id <AudioSessionPropertyListener> __unsafe_unretained obj = (id) client_data;
+            id info = prop_value_from_raw_data (prop_id, (void*)data, data_size);
+            id <AudioSessionPropertyListener> __unsafe_unretained obj = (__bridge id) client_data;
 
             [obj handleChangeOfPropery: prop_id
                               withInfo: info]; });
@@ -392,12 +405,12 @@ id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
         case kAudioSessionProperty_AudioRoute:                              // CFStringRef      (get only)
 
             assert (data_size == sizeof (id));
-            return CFBridgingRelease (*data);
+            return CFBridgingRelease (*(void**)data);
 
         case kAudioSessionProperty_AudioRouteChange:                        // CFDictionaryRef  (property listener)
 
             assert (data_size == sizeof (id));
-            return CFBridgingRelease (*data);
+            return CFBridgingRelease (*(void**)data);
 
         case kAudioSessionProperty_CurrentHardwareSampleRate:               // Float64          (get only)
         case kAudioSessionProperty_PreferredHardwareSampleRate:             // Float64          (get/set)
