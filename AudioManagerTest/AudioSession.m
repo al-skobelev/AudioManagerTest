@@ -50,41 +50,119 @@ typedef union {
 
 } raw_data_t;
 
-//============================================================================
-@interface AudioSession ()
 
-@property (assign, nonatomic) BOOL activated;
+//============================================================================
+@interface AudioSessionHelper : NSObject <AudioSessionPropertyListener>
+
+@property (assign, nonatomic) BOOL sessionActive;
+
++ (AudioSessionHelper*) sharedInstance;
+@end
+
+//============================================================================
+@implementation AudioSessionHelper 
+
+@synthesize sessionActive = _sessionActive;
+
+//----------------------------------------------------------------------------
++ (AudioSessionHelper*) sharedInstance
+{
+    static dispatch_once_t _s_once;
+    static id _s_obj = nil;
+
+    dispatch_once (&_s_once, ^{ _s_obj = [self new]; });
+    return _s_obj;
+}
+
+
+//----------------------------------------------------------------------------
+- (void) handleChangeOfPropery: (UInt32) prop_id
+                      withInfo: (id) info
+{
+    if (prop_id == kAudioSessionProperty_ServerDied)
+    {
+        dispatch_after (dispatch_time (DISPATCH_TIME_NOW, 0.3 * NSEC_PER_SEC), 
+                        dispatch_get_main_queue(), 
+                        ^{
+                            [AudioSession initializeSession];
+                            
+                            if (self.sessionActive) {
+                                [AudioSession setActive: NO];
+                                [AudioSession setActive: YES];
+                            }
+                        });
+    }
+}
+
 @end
 
 //============================================================================
 @implementation AudioSession
 
-@synthesize activated = _activated;
-
 //----------------------------------------------------------------------------
-+ (AudioSession*) sharedInstance
++ (void) initialize
 {
-    static dispatch_once_t _s_once;
-    static id _s_obj = nil;
-    
-    dispatch_once (&_s_once, ^{ _s_obj = [self new]; });
-    return _s_obj;
+    (void) [self initializeSession];
 }
 
 //----------------------------------------------------------------------------
-- init
++ (BOOL) active
 {
-    if (! (self = [super init])) return nil;
-
-    (void)[self initializeSession];
-    return self;
+    return [AudioSessionHelper sharedInstance].sessionActive; 
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
++ (OSStatus) setActive: (BOOL) active
+{
+    OSStatus status = AudioSessionSetActive (active);
+
+    if (active && (status == kAudioSessionNotInitialized))
+    {
+        if (! (status = [self initializeSession]))
+        {
+            status = AudioSessionSetActive (active);
+        }
+    }
+
+    AudioSessionHelper* helper = [AudioSessionHelper sharedInstance];
+
+    if (status != 0) {
+        ELOG(@"Failed to set Audio Session %sactive. Error: '%@'\n", active ? "" : "in", fccode_to_string (status));
+    }
+    else if (active) {
+        helper.sessionActive = YES;
+        [self addListener: helper
+              forProperty: kAudioSessionProperty_ServerDied];
+    }
+    else {
+        helper.sessionActive = NO;
+        [self removeListener: helper
+                 forProperty: kAudioSessionProperty_ServerDied];
+    }
+
+    return status;
+}
+
+//----------------------------------------------------------------------------
++ (OSStatus) initializeSession
+{
+    OSStatus status = AudioSessionInitialize (NULL, NULL,                    
+                                              interruption_listener,
+                                              NULL);  
+
+    if (status && (status != kAudioSessionAlreadyInitialized)) 
+    {
+        ELOG(@"Failed to initialize Audio Session. error: '%@'\n", fccode_to_string (status));
+    }
+
+    return status;
+}
+
+//----------------------------------------------------------------------------
++ (OSStatus) addListener: (id <AudioSessionPropertyListener>) listener
              forProperty: (UInt32) prop_id
 {
-    OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, (__bridge void*)listener);
+    OSStatus status = AudioSessionAddPropertyListener (prop_id, property_listener, (__bridge void*) listener);
     if (status != 0)
     {
         ELOG(@"AudioSessionAddPropertyListener (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
@@ -94,10 +172,10 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
++ (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
                 forProperty: (UInt32) prop_id
 {
-    OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, (__bridge void*)listener);
+    OSStatus status = AudioSessionRemovePropertyListenerWithUserData (prop_id, property_listener, (__bridge void*) listener);
     if (status != 0) {
         ELOG(@"AudioSessionRemovePropertyListenerWithUserData (%@) failed with error: '%@'\n", fccode_to_string (prop_id), fccode_to_string (status));
         return status;
@@ -106,9 +184,9 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
--(OSStatus) getRawValue: (void*) prop
-                 ofSize: (UInt32) prop_size
-            forProperty: (UInt32) prop_id
++ (OSStatus) getRawValue: (void*) prop
+                  ofSize: (UInt32) prop_size
+             forProperty: (UInt32) prop_id
 {
     assert (prop);
 
@@ -121,7 +199,7 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) setRawValue: (void*) prop
++ (OSStatus) setRawValue: (void*) prop
                   ofSize: (UInt32) prop_size
              forProperty: (UInt32) prop_id
 {
@@ -134,7 +212,7 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-- (id) valueForProperty: (UInt32) prop_id
++ (id) valueForProperty: (UInt32) prop_id
 {
     raw_data_t data;
     
@@ -150,7 +228,7 @@ typedef union {
 
 
 //----------------------------------------------------------------------------
-- (OSStatus) setValue: (id) val
++ (OSStatus) setValue: (id) val
           forProperty: (UInt32) prop_id
 {
     OSStatus status = -1;
@@ -169,7 +247,7 @@ typedef union {
 
 
 //----------------------------------------------------------------------------
-- (NSString*) audioRoute
++ (NSString*) audioRoute
 {
     NSString*  route = nil; 
     CFStringRef prop = nil; 
@@ -186,7 +264,7 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-- (UInt32) category
++ (UInt32) category
 {
     UInt32 cat = 0;
     [self getRawValue: &cat
@@ -197,7 +275,7 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) setCategory: (UInt32) cat
++ (OSStatus) setCategory: (UInt32) cat
 {
     OSStatus status = -1;
 
@@ -213,15 +291,15 @@ typedef union {
 
 
 //----------------------------------------------------------------------------
-- (BOOL) loudspeakerEnabled
++ (BOOL) loudspeakerEnabled
 {
     NSString* route = [self audioRoute];
-    return (route && ! [route hasPrefix: @"Headset"]);
+    return (route && ! [route hasPrefix: @"Head"]);
 }
 
 
 //----------------------------------------------------------------------------
-- (BOOL) setLoudspeakerEnabled: (BOOL)  enable
++ (OSStatus) setLoudspeakerEnabled: (BOOL)  enable
 {
     UInt32 prop = (enable 
                    ? kAudioSessionOverrideAudioRoute_Speaker 
@@ -229,79 +307,21 @@ typedef union {
 
     UInt32 prop_size = sizeof (prop);
 
-    return (0 == [self setRawValue: &prop
-                            ofSize: prop_size
-                       forProperty: kAudioSessionProperty_OverrideAudioRoute]);
-}
-
-
-//----------------------------------------------------------------------------
-- (OSStatus) setActive: (BOOL) active
-{
-    OSStatus status = AudioSessionSetActive (active);
-
-    if (active && (status == kAudioSessionNotInitialized))
-    {
-        if (! (status = [self initializeSession]))
-        {
-            status = AudioSessionSetActive (active);
-        }
-    }
-
-    if (status != 0) {
-        ELOG(@"Failed to set Audio Session %sactive. Error: '%@'\n", active ? "" : "in", fccode_to_string (status));
-    }
-    else {
-        self.activated = active;
-
-        if (active) [self addListener: self
-                          forProperty: kAudioSessionProperty_ServerDied];
-
-        else        [self removeListener: self
-                             forProperty: kAudioSessionProperty_ServerDied];
-    }
-
-    return status;
+    return [self setRawValue: &prop
+                      ofSize: prop_size
+                 forProperty: kAudioSessionProperty_OverrideAudioRoute];
 }
 
 //----------------------------------------------------------------------------
-- (OSStatus) initializeSession
-{
-    OSStatus status = AudioSessionInitialize (NULL, NULL,                    
-                                              interruption_listener,
-                                              NULL);  
-
-    if (status && (status != kAudioSessionAlreadyInitialized)) 
-    {
-        ELOG(@"Failed to initialize Audio Session. error: '%@'\n", fccode_to_string (status));
-    }
-
-    return status;
-}
-
-//----------------------------------------------------------------------------
-- (void) handleInterruption: (UInt32) state
++ (void) handleInterruption: (UInt32) state
 {
     id info = [NSDictionary dictionaryWithObject: [NSNumber numberWithUnsignedInt: state]
                                           forKey: AUDIO_SESSION_STATE_KEY];
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName: NTF_AUDIO_SESSION_INTERRUPTION
-                      object: self
+                      object: nil
                     userInfo: info];
-}
-
-//----------------------------------------------------------------------------
-- (void) handleChangeOfPropery: (UInt32) prop_id
-                      withInfo: (id) info
-{
-    if (prop_id == kAudioSessionProperty_ServerDied)
-    {
-        if (self.activated) {
-            [self setActive: NO];
-            [self setActive: YES];
-        }
-    }
 }
 
 @end
@@ -310,7 +330,7 @@ typedef union {
 void interruption_listener (void* data, UInt32 interruptionState)
 {
     dispatch_after (dispatch_time (DISPATCH_TIME_NOW,  0.1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            [[AudioSession sharedInstance] handleInterruption: interruptionState]; });
+            [AudioSession handleInterruption: interruptionState]; });
 }
 
 //----------------------------------------------------------------------------

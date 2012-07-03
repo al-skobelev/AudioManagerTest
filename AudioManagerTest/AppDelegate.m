@@ -51,23 +51,20 @@
 //----------------------------------------------------------------------------
 - (void) setupAudioSession
 {
-    //AudioSessionInitialize (NULL, NULL, NULL, NULL);
-    AudioSession* as = [AudioSession sharedInstance];
-
     [[NSNotificationCenter defaultCenter]
         addObserver: self
            selector: @selector(onAudioInterruption:)
                name: NTF_AUDIO_SESSION_INTERRUPTION
              object: nil];
 
-    OSStatus status = [as setCategory: kAudioSessionCategory_MediaPlayback];
+    OSStatus status = [AudioSession setCategory: kAudioSessionCategory_MediaPlayback];
     if (status != 0)
     {
         NSLog(@"ERROR: Failed to set playback audio category.");
     }
 
     //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
-    if (0 != [as setActive: YES])
+    if (0 != [AudioSession setActive: YES])
     {
         NSLog(@"ERROR: Failed to set audio session active.");
     }
