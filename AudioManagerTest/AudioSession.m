@@ -19,18 +19,6 @@
                        (((N$) << 24) & 0xff000000))
 #endif
 
-static int    prop_data_type      (UInt32 prop_id);
-static UInt32 prop_data_size      (UInt32 prop_id);
-static UInt32 prop_data_type_size (int prop_data_type);
-
-static id   prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size);
-static BOOL get_prop_value_raw_data  (UInt32 prop_id, id value, void* data, UInt32* data_size);
-
-static void interruption_listener (void* data, UInt32 inInterruptionState);
-
-static void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
-                               UInt32 data_size, const void* data);
-
 
 enum prop_data_types {
     PROP_DATA_TYPE_UNKNOWN,
@@ -42,13 +30,25 @@ enum prop_data_types {
 };
 
 typedef union {
-    CFStringRef     string;
-    CFDictionaryRef dict;
-    UInt32          uint32; 
-    Float32         float32;
-    Float64         float64;
+    CFTypeRef ref;
+    UInt32  uint32; 
+    Float32 float32;
+    Float64 float64;
 
 } raw_data_t;
+
+static int    prop_data_type      (UInt32 prop_id);
+static UInt32 prop_data_type_size (int prop_data_type);
+
+static id    prop_value_from_data     (int prop_data_type, const void* data, UInt32 data_size);
+static id    prop_value_from_raw_data (int prop_data_type, const raw_data_t* data, UInt32 data_size);
+static BOOL  get_prop_value_raw_data  (int prop_data_type, id value, raw_data_t* data, UInt32* data_size);
+static void* raw_data_ptr             (int prop_data_type, raw_data_t* data);
+
+static void interruption_listener (void* data, UInt32 inInterruptionState);
+
+static void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
+                               UInt32 data_size, const void* data);
 
 
 //============================================================================
@@ -214,15 +214,17 @@ typedef union {
 //----------------------------------------------------------------------------
 + (id) valueForProperty: (UInt32) prop_id
 {
-    raw_data_t data;
+    int dtype = prop_data_type (prop_id);
+    UInt32 data_size = prop_data_type_size (dtype);
+
+    raw_data_t raw_data;
+    void* data = raw_data_ptr (dtype, &raw_data); 
     
-    UInt32 data_size = prop_data_size (prop_id);
-    
-    OSStatus status = [self getRawValue: &data
+    OSStatus status = [self getRawValue: data
                                  ofSize: data_size
                             forProperty: prop_id];
     
-    id val = (0 == status) ? prop_value_from_raw_data (prop_id, &data, data_size) : nil;
+    id val = (0 == status) ? prop_value_from_raw_data (prop_id, &raw_data, data_size) : nil;
     return val;
 }
 
@@ -232,12 +234,14 @@ typedef union {
           forProperty: (UInt32) prop_id
 {
     OSStatus status = -1;
-    raw_data_t data;
+
+    int dtype = prop_data_type (prop_id);
+    raw_data_t raw_data;
     UInt32 data_size;
 
-    if (get_prop_value_raw_data (prop_id, val, &data, &data_size))
+    if (get_prop_value_raw_data (dtype, val, &raw_data, &data_size))
     {
-        status = [self  setRawValue: &data
+        status = [self  setRawValue: raw_data_ptr (dtype, &raw_data)
                              ofSize: data_size
                         forProperty: prop_id];
     }
@@ -294,7 +298,7 @@ typedef union {
 + (BOOL) loudspeakerEnabled
 {
     NSString* route = [self audioRoute];
-    return (route && ! [route hasPrefix: @"Head"]);
+    return (route && [route hasPrefix: @"Speaker"]);
 }
 
 
@@ -323,8 +327,9 @@ typedef union {
         return;
     }
 
-    id info = [NSDictionary dictionaryWithObject: state
-                                          forKey: AUDIO_SESSION_STATE_KEY];
+    id info = [NSDictionary 
+                  dictionaryWithObject: state
+                                forKey: AUDIO_SESSION_STATE_KEY];
 
     [[NSNotificationCenter defaultCenter]
         postNotificationName: NTF_AUDIO_SESSION_INTERRUPTION
@@ -344,13 +349,17 @@ void interruption_listener (void* data, UInt32 interruptionState)
 void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
                         UInt32 data_size, const void* data)
 {
-    dispatch_sync (dispatch_get_main_queue(), ^{
+    int dtype = prop_data_type (prop_id);
+    id info = prop_value_from_data (dtype, (void*) data, data_size);
+    id <AudioSessionPropertyListener> obj = (__bridge id) client_data;
             
-            id info = prop_value_from_raw_data (prop_id, (void*)data, data_size);
-            id <AudioSessionPropertyListener> obj = (__bridge id) client_data;
-
+    dispatch_after 
+        (dispatch_time (DISPATCH_TIME_NOW, 0.01 * NSEC_PER_SEC), 
+         dispatch_get_main_queue(), 
+         ^{
             [obj handleChangeOfPropery: prop_id
-                              withInfo: info]; });
+                              withInfo: info]; 
+         });
 }
 
 //----------------------------------------------------------------------------
@@ -398,72 +407,95 @@ int prop_data_type (UInt32 prop_id)
 }
 
 //----------------------------------------------------------------------------
-id prop_value_from_raw_data (UInt32 prop_id, void* data, UInt32 data_size)
+id prop_value_from_data (int prop_data_type, const void* data, UInt32 data_size)
 {
-    int dtype = prop_data_type (prop_id);
-
-    switch (dtype)
+    switch (prop_data_type)
     {
         case PROP_DATA_TYPE_STRING:
         case PROP_DATA_TYPE_DICT:
+            return prop_value_from_raw_data (prop_data_type, (const raw_data_t*)&data, data_size);
+            
+        default:
+            return prop_value_from_raw_data (prop_data_type, (const raw_data_t*)data, data_size);
+    }
+}
 
-            assert (data_size == sizeof (id));
-            return CFBridgingRelease (*(void**)data);
+//----------------------------------------------------------------------------
+id prop_value_from_raw_data (int prop_data_type, const raw_data_t* data, UInt32 data_size)
+{
+    switch (prop_data_type)
+    {
+        case PROP_DATA_TYPE_STRING:
+
+            assert (data_size == sizeof (CFTypeRef));
+            return CFBridgingRelease (data->ref);
+
+        case PROP_DATA_TYPE_DICT:
+
+            assert (data_size == sizeof (CFTypeRef));
+            return (__bridge id)data->ref;
 
         case PROP_DATA_TYPE_UINT32:
 
             assert (data_size == sizeof (UInt32));
-            return [NSNumber numberWithUnsignedInt: *(UInt32*)data];
+            return [NSNumber numberWithUnsignedInt: data->uint32];
 
         case PROP_DATA_TYPE_FLOAT32:
 
             assert (data_size == sizeof (Float32));
-            return [NSNumber numberWithFloat: *(Float32*)data];
+            return [NSNumber numberWithFloat: data->float32];
 
         case PROP_DATA_TYPE_FLOAT64:
 
             assert (data_size == sizeof (Float64));
-            return [NSNumber numberWithDouble: *(Float64*)data];
+            return [NSNumber numberWithDouble: data->float64];
     }
 
     return nil;
 }
 
 //----------------------------------------------------------------------------
-BOOL get_prop_value_raw_data (UInt32 prop_id, id value, void* data, UInt32* data_size)
+void* raw_data_ptr (int prop_data_type, raw_data_t* data)
+{
+    switch (prop_data_type)
+    {
+        case PROP_DATA_TYPE_STRING:
+        case PROP_DATA_TYPE_DICT:
+            return (void*)data->ref;
+        default:
+            return data;
+    }
+}
+
+//----------------------------------------------------------------------------
+BOOL get_prop_value_raw_data (int prop_data_type, id value, raw_data_t* data, UInt32* data_size)
 {
     assert (data && data_size);
 
-    int dtype = prop_data_type (prop_id);
-
-    switch (dtype)
+    switch (prop_data_type)
     {
         case PROP_DATA_TYPE_STRING:
-            *(CFStringRef*)data = (__bridge void*) value;
-            *data_size = sizeof (CFStringRef);
-            return YES;
-
         case PROP_DATA_TYPE_DICT:
 
-            *(CFDictionaryRef*)data = (__bridge void*) value;
-            *data_size = sizeof (CFDictionaryRef);
+            data->ref = (__bridge CFTypeRef) value;
+            *data_size = sizeof (CFTypeRef);
             return YES;
             
         case PROP_DATA_TYPE_UINT32:
-
-            *(UInt32*)data = [value unsignedIntValue];
+            
+            data->uint32 = [value unsignedIntValue];
             *data_size = sizeof(UInt32);
             return YES;
 
         case PROP_DATA_TYPE_FLOAT32:
 
-            *(Float32*)data = [value floatValue];
+            data->float32 = [value floatValue];
             *data_size = sizeof(Float32);
             return YES;
 
         case PROP_DATA_TYPE_FLOAT64:
-
-            *(Float64*)data = [value doubleValue];
+            
+            data->float64 = [value doubleValue];
             *data_size = sizeof(Float64);
             return YES;
             
@@ -481,11 +513,6 @@ UInt32 prop_data_type_size (int dtype)
             (dtype == PROP_DATA_TYPE_FLOAT32) ? sizeof (Float32) :
             (dtype == PROP_DATA_TYPE_FLOAT64) ? sizeof (Float64) :
             0);
-}
-//----------------------------------------------------------------------------
-UInt32 prop_data_size (UInt32 prop_id)
-{
-    return prop_data_type_size (prop_data_type (prop_id));
 }
 
 //----------------------------------------------------------------------------
