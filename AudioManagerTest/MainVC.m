@@ -6,6 +6,7 @@
 
 #import "MainVC.h"
 #import "AudioPlayer.h"
+#import "AudioSession.h"
 #import <MediaPlayer/MediaPlayer.h>
 
 #define ADD_OBSERVER_W_OBJ(NTFNAME$, OBSERV$, SEL$, OBJ$)               \
@@ -41,6 +42,8 @@
 @property (strong, nonatomic) NSArray* files;
 
 - (void) setupFiles;
+
+- (void) setupSpeakerBtn;
 - (void) setupTogglePlayBtn: (BOOL) enabled;
 - (void) preparePlayerForSelectedRow;
 
@@ -53,6 +56,7 @@
 
 @synthesize tableView;
 @synthesize refreshBtn;
+@synthesize speakerBtn;
 @synthesize togglePlayBtn;
 @synthesize playSlider;
 
@@ -83,6 +87,7 @@
     double time = ((isfinite (dur) && (dur > 0))
                    ? [amgr currentTime] / dur
                    : 0);
+
     float minval = [self.playSlider minimumValue];
     float maxval = [self.playSlider maximumValue];
     
@@ -95,7 +100,7 @@
     [self setupFiles];
     [self setupTogglePlayBtn: NO];
     [self syncSlider];
-
+    [self setupSpeakerBtn];
     [self.tableView reloadData];
     [self preparePlayerForSelectedRow];
 }
@@ -110,15 +115,43 @@
     ADD_OBSERVER (NTF_AUDIO_PLAYER_PLAY_COMPLETED, self, onPlayCompleted:);
     ADD_OBSERVER (NTF_AUDIO_PLAYER_PLAY_TIMER,     self, onPlayTimer:);
     ADD_OBSERVER (NTF_AUDIO_PLAYER_STATE_CHANGED,  self, onPlayerStateChanged:);
+
+    [AudioSession addListener: self
+                  forProperty: kAudioSessionProperty_AudioRouteChange];
+    [AudioSession addListener: self
+                  forProperty: kAudioSessionProperty_CurrentHardwareOutputVolume];
 }
 
 //----------------------------------------------------------------------------
 - (void) viewWillDisappear: (BOOL) animated
 {
     [super viewWillDisappear: animated];
+
+    [AudioSession removeListener: self
+                     forProperty: kAudioSessionProperty_CurrentHardwareOutputVolume];
+
+    [AudioSession removeListener: self
+                     forProperty: kAudioSessionProperty_AudioRouteChange];
+
     REMOVE_OBSERVER (NTF_AUDIO_PLAYER_PLAY_COMPLETED, self);
     REMOVE_OBSERVER (NTF_AUDIO_PLAYER_PLAY_TIMER,     self);
     REMOVE_OBSERVER (NTF_AUDIO_PLAYER_STATE_CHANGED,  self);
+}
+
+//----------------------------------------------------------------------------
+- (void) handleChangeOfPropery: (UInt32) prop_id
+                      withInfo: (id) info
+{
+    NSLog(@"Property changed: %@ info: %@", fccode_to_string (prop_id), info);
+    switch (prop_id)
+    {
+        case kAudioSessionProperty_AudioRouteChange:
+            [self setupSpeakerBtn];
+            break;
+
+        case kAudioSessionProperty_CurrentHardwareOutputVolume:
+            break;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -133,6 +166,12 @@
 - (void) onPlayURLReady: (NSError*) err
 {
     [self setupTogglePlayBtn: (err == nil)];
+}
+
+//----------------------------------------------------------------------------
+- (IBAction) onSpeakerBtn: (id) sender 
+{
+    [AudioSession setLoudspeakerEnabled: ! [AudioSession loudspeakerEnabled]];
 }
 
 //----------------------------------------------------------------------------
@@ -200,6 +239,16 @@
     [arr addObjectsFromArray: names];
 
     self.files = arr;
+}
+
+//----------------------------------------------------------------------------
+- (void) setupSpeakerBtn
+{
+    NSString* aroute = [AudioSession audioRoute];
+    NSLog(@"audio route: %@", aroute);
+
+    BOOL on = [aroute hasPrefix: @"Speaker"];
+    self.speakerBtn.image = [UIImage imageNamed: (on ? @"speaker-on" : @"speaker-off")];
 }
 
 //----------------------------------------------------------------------------

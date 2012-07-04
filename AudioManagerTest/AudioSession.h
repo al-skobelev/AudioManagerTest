@@ -34,15 +34,16 @@ NSString* fccode_to_string (UInt32 code);
 + (OSStatus) removeListener: (id <AudioSessionPropertyListener>) listener
                 forProperty: (UInt32) prop_id;
 
-+ (id) valueForProperty: (UInt32) prop_id;
++ (id) valueOfProperty: (UInt32) prop_id;
 + (OSStatus) setValue: (id) val
-          forProperty: (UInt32) prop_id;
+           ofProperty: (UInt32) prop_id;
 
 + (NSString*) audioRoute;
 
 + (UInt32) category;
 + (OSStatus) setCategory: (UInt32) cat;
 
+// Relevant in PlayAndRecord mode only
 + (BOOL) loudspeakerEnabled;
 + (OSStatus) setLoudspeakerEnabled: (BOOL)  enable;
 

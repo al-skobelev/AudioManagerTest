@@ -63,7 +63,8 @@
                name: NTF_AUDIO_SESSION_INTERRUPTION
              object: nil];
 
-    OSStatus status = [AudioSession setCategory: kAudioSessionCategory_MediaPlayback];
+    OSStatus status = [AudioSession setCategory: kAudioSessionCategory_PlayAndRecord];
+    // OSStatus status = [AudioSession setCategory: kAudioSessionCategory_MediaPlayback];
     if (status != 0)
     {
         NSLog(@"ERROR: Failed to set playback audio category.");

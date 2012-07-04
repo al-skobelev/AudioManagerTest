@@ -263,19 +263,19 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 {
     if (context == _s_rateContext) 
     {
-        LOG(@"context: RATE");
+        // LOG(@"context: RATE");
         [self notifyAboutChangeOfObject: [NSNumber numberWithFloat: self.player.rate]
                                 withKey: AUDIO_PLAYER_RATE_KEY];
     }
     else if (context == _s_currentItemContext) 
     {
-        LOG(@"context: CURRENT_ITEM");
+        // LOG(@"context: CURRENT_ITEM");
         [self notifyAboutChangeOfObject: self.player.currentItem
                                 withKey: AUDIO_PLAYER_CURRENT_ITEM_KEY];
     }
     else if (context == _s_itemStatusContext) 
     {
-        LOG(@"context: ITEM STATUS");
+        // LOG(@"context: ITEM STATUS");
         [self notifyAboutChangeOfObject: [NSNumber numberWithInt: self.player.status]
                                 withKey: AUDIO_PLAYER_STATUS_KEY];
     }

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		D974B5E615A144DA00751ABE /* AudioSession.m in Sources */ = {isa = PBXBuildFile; fileRef = D974B5E515A144DA00751ABE /* AudioSession.m */; };
+		D9979AC515A45888004559F4 /* speaker-off.png in Resources */ = {isa = PBXBuildFile; fileRef = D9979AC315A45888004559F4 /* speaker-off.png */; };
+		D9979AC615A45888004559F4 /* speaker-on.png in Resources */ = {isa = PBXBuildFile; fileRef = D9979AC415A45888004559F4 /* speaker-on.png */; };
 		D9A8E1B515A310D000BDE877 /* audio in Resources */ = {isa = PBXBuildFile; fileRef = D9A8E1B415A310D000BDE877 /* audio */; };
 		D9A8E1B815A3121E00BDE877 /* CommonUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = D9A8E1B715A3121E00BDE877 /* CommonUtils.m */; };
 		D9B8B6C0159989860018B43D /* AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = D9B8B6BF159989860018B43D /* AudioPlayer.m */; };
@@ -47,6 +49,8 @@
 /* Begin PBXFileReference section */
 		D974B5E415A144DA00751ABE /* AudioSession.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioSession.h; sourceTree = "<group>"; };
 		D974B5E515A144DA00751ABE /* AudioSession.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AudioSession.m; sourceTree = "<group>"; };
+		D9979AC315A45888004559F4 /* speaker-off.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "speaker-off.png"; sourceTree = "<group>"; };
+		D9979AC415A45888004559F4 /* speaker-on.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "speaker-on.png"; sourceTree = "<group>"; };
 		D9A8E1B415A310D000BDE877 /* audio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = audio; sourceTree = "<group>"; };
 		D9A8E1B615A3121E00BDE877 /* CommonUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CommonUtils.h; sourceTree = "<group>"; };
 		D9A8E1B715A3121E00BDE877 /* CommonUtils.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CommonUtils.m; sourceTree = "<group>"; };
@@ -115,6 +119,8 @@
 				D9B8B6CC1599C6B40018B43D /* play@2x.png */,
 				D9B8B6C81599AD820018B43D /* play.png */,
 				D9B8B6C91599AD820018B43D /* stop.png */,
+				D9979AC315A45888004559F4 /* speaker-off.png */,
+				D9979AC415A45888004559F4 /* speaker-on.png */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -279,6 +285,8 @@
 				D9B8B6CB1599AD820018B43D /* stop.png in Resources */,
 				D9B8B6CD1599C6B40018B43D /* play@2x.png in Resources */,
 				D9A8E1B515A310D000BDE877 /* audio in Resources */,
+				D9979AC515A45888004559F4 /* speaker-off.png in Resources */,
+				D9979AC615A45888004559F4 /* speaker-on.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

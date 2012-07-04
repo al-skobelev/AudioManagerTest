@@ -212,26 +212,25 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 }
 
 //----------------------------------------------------------------------------
-+ (id) valueForProperty: (UInt32) prop_id
++ (id) valueOfProperty: (UInt32) prop_id
 {
     int dtype = prop_data_type (prop_id);
     UInt32 data_size = prop_data_type_size (dtype);
 
-    raw_data_t raw_data;
-    void* data = raw_data_ptr (dtype, &raw_data); 
+    raw_data_t raw_data = {0};
     
-    OSStatus status = [self getRawValue: data
+    OSStatus status = [self getRawValue: &raw_data
                                  ofSize: data_size
                             forProperty: prop_id];
     
-    id val = (0 == status) ? prop_value_from_raw_data (prop_id, &raw_data, data_size) : nil;
+    id val = (0 == status) ? prop_value_from_raw_data (dtype, &raw_data, data_size) : nil;
     return val;
 }
 
 
 //----------------------------------------------------------------------------
 + (OSStatus) setValue: (id) val
-          forProperty: (UInt32) prop_id
+           ofProperty: (UInt32) prop_id
 {
     OSStatus status = -1;
 
@@ -253,29 +252,34 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 //----------------------------------------------------------------------------
 + (NSString*) audioRoute
 {
-    NSString*  route = nil; 
-    CFStringRef prop = nil; 
-    UInt32 prop_size = sizeof (prop);
+    return [self valueOfProperty: kAudioSessionProperty_AudioRoute];
+
+    // NSString*  route = nil; 
+    // CFStringRef prop = nil; 
+    // UInt32 prop_size = sizeof (prop);
     
-    if (0 == [self getRawValue: &prop
-                        ofSize: prop_size
-                   forProperty: kAudioSessionProperty_AudioRoute])
-    {
-        route = (NSString*) CFBridgingRelease (prop);
-    }
+    // if (0 == [self getRawValue: &prop
+    //                     ofSize: prop_size
+    //                forProperty: kAudioSessionProperty_AudioRoute])
+    // {
+    //     route = (NSString*) CFBridgingRelease (prop);
+    // }
     
-    return route;
+    // return route;
 }
 
 //----------------------------------------------------------------------------
 + (UInt32) category
 {
-    UInt32 cat = 0;
-    [self getRawValue: &cat
-               ofSize: sizeof(cat)
-          forProperty: kAudioSessionProperty_AudioCategory];
+    return [[self valueOfProperty: kAudioSessionProperty_AudioCategory] 
+               unsignedIntValue];
+
+    // UInt32 cat = 0;
+    // [self getRawValue: &cat
+    //            ofSize: sizeof(cat)
+    //       forProperty: kAudioSessionProperty_AudioCategory];
     
-    return cat;
+    // return cat;
 }
 
 //----------------------------------------------------------------------------
@@ -285,9 +289,11 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
 
     if ([self category] != cat)
     {
-        status = [self setRawValue: &cat 
-                            ofSize: sizeof(cat)
-                       forProperty: kAudioSessionProperty_AudioCategory];
+        status = [self setValue: [NSNumber numberWithUnsignedInt: cat]
+                     ofProperty: kAudioSessionProperty_AudioCategory];
+        // status = [self setRawValue: &cat 
+        //                     ofSize: sizeof(cat)
+        //                forProperty: kAudioSessionProperty_AudioCategory];
     }
     return status;
 }
@@ -309,11 +315,14 @@ static void property_listener (void* client_data, AudioSessionPropertyID  prop_i
                    ? kAudioSessionOverrideAudioRoute_Speaker 
                    : kAudioSessionOverrideAudioRoute_None);
 
-    UInt32 prop_size = sizeof (prop);
+    return [self setValue: [NSNumber numberWithUnsignedInt: prop]
+               ofProperty: kAudioSessionProperty_OverrideAudioRoute];
 
-    return [self setRawValue: &prop
-                      ofSize: prop_size
-                 forProperty: kAudioSessionProperty_OverrideAudioRoute];
+    // UInt32 prop_size = sizeof (prop);
+
+    // return [self setRawValue: &prop
+    //                   ofSize: prop_size
+    //              forProperty: kAudioSessionProperty_OverrideAudioRoute];
 }
 
 //----------------------------------------------------------------------------
