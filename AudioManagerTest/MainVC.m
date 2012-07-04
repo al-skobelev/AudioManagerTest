@@ -107,16 +107,18 @@
     [self updateUI];
     [AudioPlayer sharedPlayer].periodicTimerInterval = 0.5;
     
-    ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_COMPLETED, self, onPlayCompleted:);
-    ADD_OBSERVER (NTF_AUDIO_MANAGER_PLAY_TIMER,     self, onPlayTimer:);
+    ADD_OBSERVER (NTF_AUDIO_PLAYER_PLAY_COMPLETED, self, onPlayCompleted:);
+    ADD_OBSERVER (NTF_AUDIO_PLAYER_PLAY_TIMER,     self, onPlayTimer:);
+    ADD_OBSERVER (NTF_AUDIO_PLAYER_STATE_CHANGED,  self, onPlayerStateChanged:);
 }
 
 //----------------------------------------------------------------------------
 - (void) viewWillDisappear: (BOOL) animated
 {
     [super viewWillDisappear: animated];
-    REMOVE_OBSERVER (NTF_AUDIO_MANAGER_PLAY_COMPLETED, self);
-    REMOVE_OBSERVER (NTF_AUDIO_MANAGER_PLAY_TIMER,     self);
+    REMOVE_OBSERVER (NTF_AUDIO_PLAYER_PLAY_COMPLETED, self);
+    REMOVE_OBSERVER (NTF_AUDIO_PLAYER_PLAY_TIMER,     self);
+    REMOVE_OBSERVER (NTF_AUDIO_PLAYER_STATE_CHANGED,  self);
 }
 
 //----------------------------------------------------------------------------
@@ -252,7 +254,7 @@
 
     float minval = [self.playSlider minimumValue];
     float maxval = [self.playSlider maximumValue];
-    double  time = [[[ntf userInfo] objectForKey: RELATIVE_TIME_KEY] doubleValue];
+    double  time = [[[ntf userInfo] objectForKey: AUDIO_PLAYER_RELATIVE_TIME_KEY] doubleValue];
 
     [self.playSlider setValue: ((maxval - minval) * time + minval)];
     
@@ -263,12 +265,22 @@
         id info = [NSDictionary dictionaryWithObjectsAndKeys:
                                     [NSNumber numberWithInt: MPMediaTypeAnyAudio],   MPMediaItemPropertyMediaType,
                                     [self.files objectAtIndex: ipath.row],           MPMediaItemPropertyTitle,
-                                    [[ntf userInfo] objectForKey: CURRENT_TIME_KEY], MPNowPlayingInfoPropertyPlaybackRate,
-                                    [[ntf userInfo] objectForKey: DURATION_KEY],     MPMediaItemPropertyPlaybackDuration,
-                                    [[ntf userInfo] objectForKey: RATE_KEY],         MPNowPlayingInfoPropertyPlaybackRate,
+                                    [[ntf userInfo] objectForKey: AUDIO_PLAYER_CURRENT_TIME_KEY], MPNowPlayingInfoPropertyPlaybackRate,
+                                    [[ntf userInfo] objectForKey: AUDIO_PLAYER_DURATION_KEY],     MPMediaItemPropertyPlaybackDuration,
+                                    [[ntf userInfo] objectForKey: AUDIO_PLAYER_RATE_KEY],         MPNowPlayingInfoPropertyPlaybackRate,
                                     nil];
 
         [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
+    }
+}
+
+//----------------------------------------------------------------------------
+- (void) onPlayerStateChanged: (NSNotification*) ntf
+{
+    id rate = [[ntf userInfo] objectForKey: AUDIO_PLAYER_RATE_KEY];
+    if (rate)
+    {
+        [self setupTogglePlayBtn: YES];
     }
 }
 

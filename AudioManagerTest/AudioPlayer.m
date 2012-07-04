@@ -9,8 +9,8 @@
 #define ELOG(FMT$, ARGS$...) NSLog (@"%s -- ERROR -- " FMT$, __PRETTY_FUNCTION__, ##ARGS$)
 
 
-#define TRACKS_KEY @"tracks"
-#define PLAYABLE_KEY @"playable"
+#define AUDIO_PLAYER_TRACKS_KEY @"tracks"
+#define AUDIO_PLAYER_PLAYABLE_KEY @"playable"
 
 
 
@@ -87,7 +87,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
         return NO;
     }
         
-    id keys = [NSArray arrayWithObjects: TRACKS_KEY, PLAYABLE_KEY, nil];
+    id keys = [NSArray arrayWithObjects: AUDIO_PLAYER_TRACKS_KEY, AUDIO_PLAYER_PLAYABLE_KEY, nil];
 
     [asset loadValuesAsynchronouslyForKeys: keys
                          completionHandler: 
@@ -114,11 +114,11 @@ static void* _s_currentItemContext = &_s_currentItemContext;
 
     if (! res) return NO;
     
-    int i = 0;
+    //int i = 0;
     while (! url_ready)
     {
-        NSLog(@"%d", i++);
-        [[NSRunLoop currentRunLoop] runUntilDate: [NSDate distantPast]];
+        // NSLog(@"%d", i++);
+        [[NSRunLoop currentRunLoop] runUntilDate: [[NSDate date] dateByAddingTimeInterval: 0.1]];
     }
 
     if (url_prep_err)
@@ -144,7 +144,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     if (self.playerItem)
     {
         [self.playerItem removeObserver: self
-                             forKeyPath: STATUS_KEY];            
+                             forKeyPath: AUDIO_PLAYER_STATUS_KEY];            
 		
         [nc removeObserver: self
                       name: AVPlayerItemDidPlayToEndTimeNotification
@@ -158,7 +158,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
         self.playerItem = item;
     
         [self.playerItem addObserver: self 
-                          forKeyPath: STATUS_KEY 
+                          forKeyPath: AUDIO_PLAYER_STATUS_KEY 
                              options: (NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew)
                              context: _s_itemStatusContext];
         
@@ -178,10 +178,10 @@ static void* _s_currentItemContext = &_s_currentItemContext;
         [self stopPeriodicTimer];
 
         [self.player removeObserver: self 
-                         forKeyPath: CURRENT_ITEM_KEY];
+                         forKeyPath: AUDIO_PLAYER_CURRENT_ITEM_KEY];
 
         [self.player removeObserver: self 
-                         forKeyPath: RATE_KEY];
+                         forKeyPath: AUDIO_PLAYER_RATE_KEY];
         self.player = nil;
     }
 
@@ -190,12 +190,12 @@ static void* _s_currentItemContext = &_s_currentItemContext;
         self.player = [AVPlayer playerWithPlayerItem: self.playerItem];	
 	
         [self.player addObserver: self 
-                      forKeyPath: CURRENT_ITEM_KEY 
+                      forKeyPath: AUDIO_PLAYER_CURRENT_ITEM_KEY 
                          options: (NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew)
                          context: _s_currentItemContext];
     
         [self.player addObserver: self 
-                      forKeyPath: RATE_KEY 
+                      forKeyPath: AUDIO_PLAYER_RATE_KEY 
                          options: (NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew)
                          context: _s_rateContext];
     }
@@ -242,11 +242,10 @@ static void* _s_currentItemContext = &_s_currentItemContext;
                            withKey: (NSString*) key
 {
     id info = [NSDictionary dictionaryWithObject: obj forKey: key];
-
-    id ntf = [NSNotification
-                 notificationWithName: NTF_AUDIO_MANAGER_STATE_CHANGED
-                               object: self
-                             userInfo: info];
+    id ntf  = [NSNotification
+                  notificationWithName: NTF_AUDIO_PLAYER_STATE_CHANGED
+                                object: self
+                              userInfo: info];
     
     LOG(@"WILL POST NOTIFICATION: key: \"%@\" object: %@", key, obj);
     
@@ -266,19 +265,19 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     {
         LOG(@"context: RATE");
         [self notifyAboutChangeOfObject: [NSNumber numberWithFloat: self.player.rate]
-                                withKey: RATE_KEY];
+                                withKey: AUDIO_PLAYER_RATE_KEY];
     }
     else if (context == _s_currentItemContext) 
     {
         LOG(@"context: CURRENT_ITEM");
         [self notifyAboutChangeOfObject: self.player.currentItem
-                                withKey: CURRENT_ITEM_KEY];
+                                withKey: AUDIO_PLAYER_CURRENT_ITEM_KEY];
     }
     else if (context == _s_itemStatusContext) 
     {
         LOG(@"context: ITEM STATUS");
         [self notifyAboutChangeOfObject: [NSNumber numberWithInt: self.player.status]
-                                withKey: STATUS_KEY];
+                                withKey: AUDIO_PLAYER_STATUS_KEY];
     }
     else {
         [super observeValueForKeyPath: keyPath
@@ -295,7 +294,7 @@ static void* _s_currentItemContext = &_s_currentItemContext;
     self.player.rate = 0;
 
     ntf = [NSNotification
-              notificationWithName: NTF_AUDIO_MANAGER_PLAY_COMPLETED
+              notificationWithName: NTF_AUDIO_PLAYER_PLAY_COMPLETED
                             object: self];
     
     [[NSNotificationCenter defaultCenter]
@@ -372,7 +371,8 @@ static void* _s_currentItemContext = &_s_currentItemContext;
             [self.player 
                 addPeriodicTimeObserverForInterval: cmtime
                                              queue: NULL // use the main queue
-                                        usingBlock: ^(CMTime time) 
+                                        usingBlock: 
+                    ^(CMTime time) 
                     {
                         if (self_weak.periodicTimerInterval > 0)
                         {
@@ -384,14 +384,14 @@ static void* _s_currentItemContext = &_s_currentItemContext;
                             if (isfinite (dur) && dur > 0) rtime = secs / dur;
  
                             id info = [NSDictionary dictionaryWithObjectsAndKeys: 
-                                                        [NSNumber numberWithDouble: secs],  CURRENT_TIME_KEY,
-                                                        [NSNumber numberWithDouble: rtime], RELATIVE_TIME_KEY,
-                                                        [NSNumber numberWithDouble: dur],   DURATION_KEY,
-                                                        [NSNumber numberWithDouble: rate],  RATE_KEY,
+                                                        [NSNumber numberWithDouble: secs],  AUDIO_PLAYER_CURRENT_TIME_KEY,
+                                                        [NSNumber numberWithDouble: rtime], AUDIO_PLAYER_RELATIVE_TIME_KEY,
+                                                        [NSNumber numberWithDouble: dur],   AUDIO_PLAYER_DURATION_KEY,
+                                                        [NSNumber numberWithDouble: rate],  AUDIO_PLAYER_RATE_KEY,
                                                         nil];
 
                             [[NSNotificationCenter defaultCenter]
-                                postNotificationName: NTF_AUDIO_MANAGER_PLAY_TIMER
+                                postNotificationName: NTF_AUDIO_PLAYER_PLAY_TIMER
                                               object: self_weak
                                             userInfo: info];
                         }

@@ -51,6 +51,12 @@
 //----------------------------------------------------------------------------
 - (void) setupAudioSession
 {
+    //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
+    if (0 != [AudioSession setActive: YES])
+    {
+        NSLog(@"ERROR: Failed to set audio session active.");
+    }
+
     [[NSNotificationCenter defaultCenter]
         addObserver: self
            selector: @selector(onAudioInterruption:)
@@ -61,12 +67,6 @@
     if (status != 0)
     {
         NSLog(@"ERROR: Failed to set playback audio category.");
-    }
-
-    //NSLog(@"#3 Category: %@", [[AVAudioSession sharedInstance] category]);
-    if (0 != [AudioSession setActive: YES])
-    {
-        NSLog(@"ERROR: Failed to set audio session active.");
     }
 }
 
@@ -162,7 +162,7 @@
     self.inBackground = NO;
 
     if (self.resumePlayback) {
-        dispatch_after (0.1, dispatch_get_main_queue(), ^{
+        dispatch_after (dispatch_time (DISPATCH_TIME_NOW, 0.1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                 [self endInterruption];
             });
     }

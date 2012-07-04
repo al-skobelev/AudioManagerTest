@@ -277,7 +277,7 @@ typedef union {
 //----------------------------------------------------------------------------
 + (OSStatus) setCategory: (UInt32) cat
 {
-    OSStatus status = -1;
+    OSStatus status = 0;
 
     if ([self category] != cat)
     {
@@ -313,9 +313,17 @@ typedef union {
 }
 
 //----------------------------------------------------------------------------
-+ (void) handleInterruption: (UInt32) state
++ (void) handleInterruption: (NSNumber*) state
 {
-    id info = [NSDictionary dictionaryWithObject: [NSNumber numberWithUnsignedInt: state]
+    if (! [NSThread isMainThread])
+    {
+        [self performSelectorOnMainThread: _cmd
+                               withObject: state
+                            waitUntilDone: YES];
+        return;
+    }
+
+    id info = [NSDictionary dictionaryWithObject: state
                                           forKey: AUDIO_SESSION_STATE_KEY];
 
     [[NSNotificationCenter defaultCenter]
@@ -329,8 +337,7 @@ typedef union {
 //----------------------------------------------------------------------------
 void interruption_listener (void* data, UInt32 interruptionState)
 {
-    dispatch_after (dispatch_time (DISPATCH_TIME_NOW,  0.1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            [AudioSession handleInterruption: interruptionState]; });
+    [AudioSession handleInterruption: [NSNumber numberWithUnsignedInt: interruptionState]];
 }
 
 //----------------------------------------------------------------------------
@@ -340,7 +347,7 @@ void property_listener (void* client_data, AudioSessionPropertyID  prop_id,
     dispatch_sync (dispatch_get_main_queue(), ^{
             
             id info = prop_value_from_raw_data (prop_id, (void*)data, data_size);
-            id <AudioSessionPropertyListener> __unsafe_unretained obj = (__bridge id) client_data;
+            id <AudioSessionPropertyListener> obj = (__bridge id) client_data;
 
             [obj handleChangeOfPropery: prop_id
                               withInfo: info]; });
