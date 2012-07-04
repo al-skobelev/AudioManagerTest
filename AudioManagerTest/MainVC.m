@@ -197,14 +197,7 @@
 - (IBAction) onEndPlaySliding: (id) sender
 {
     AudioPlayer* amgr = [AudioPlayer sharedPlayer];
-    amgr.periodicTimerInterval = 0.5;
-}
 
-
-//----------------------------------------------------------------------------
-- (IBAction) onPlaySliderChanged: (id) sender
-{
-    AudioPlayer* amgr = [AudioPlayer sharedPlayer];
     double duration = [amgr duration];
 
     double  time = self.playSlider.value;
@@ -213,6 +206,23 @@
 
     time = duration * (time - minval) / (maxval - minval);
     [amgr seekToTime: time];
+
+    amgr.periodicTimerInterval = 0.5;
+}
+
+
+//----------------------------------------------------------------------------
+- (IBAction) onPlaySliderChanged: (id) sender
+{
+    // AudioPlayer* amgr = [AudioPlayer sharedPlayer];
+    // double duration = [amgr duration];
+
+    // double  time = self.playSlider.value;
+    // float minval = self.playSlider.minimumValue;
+    // float maxval = self.playSlider.maximumValue;
+
+    // time = duration * (time - minval) / (maxval - minval);
+    // [amgr seekToTime: time];
 }
 
 //----------------------------------------------------------------------------
