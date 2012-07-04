@@ -122,7 +122,7 @@
 				D9A8E1EC15A3236800BDE877 /* AudioSession.m */,
 			);
 			name = AudioManagerTest;
-			path = "Externals/gh-unit/Project-iOS/../../../../AudioManagerTest";
+			path = ../AudioManagerTest;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

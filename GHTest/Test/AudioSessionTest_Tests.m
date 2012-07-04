@@ -94,44 +94,51 @@
 //----------------------------------------------------------------------------
 - (void) test_03_loudSpeaker
 {
-    GHTestLog(@"Skip for now. Should better understand the behavior of these methods.");
+    UInt32 category = TEST_LOG([AudioSession category]);
+    OSStatus status = TEST_LOG ([AudioSession setCategory: kAudioSessionCategory_PlayAndRecord]);
+
+    {
+        BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
+        status = TEST_LOG ([AudioSession setLoudspeakerEnabled: ![AudioSession loudspeakerEnabled]]);
+
+        GHAssertTrue (enabled == ![AudioSession loudspeakerEnabled], nil);
+        GHTestLog(@" -- OK");
+
+        status = TEST_LOG ([AudioSession setLoudspeakerEnabled: enabled]);
+
+    }
+
+    status = TEST_LOG ([AudioSession setCategory: category]);
+
     // {
     //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
-    //     OSStatus status = TEST_LOG ([AudioSession setLoudspeakerEnabled: ![AudioSession loudspeakerEnabled]]);
-
-    //     GHAssertTrue (enabled == ![AudioSession loudspeakerEnabled], nil);
-    //     GHTestLog(@" -- OK");
+    //     GHAssertTrue (enabled, nil);
+    //     GHTestLog(@" -- OK: loudspeakerEnabled is enabled");
     // }
 
-    // // {
-    // //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
-    // //     GHAssertTrue (enabled, nil);
-    // //     GHTestLog(@" -- OK: loudspeakerEnabled is enabled");
-    // // }
+    // {
+    //     OSStatus status = TEST_LOG ([AudioSession setLoudspeakerEnabled: NO]);
+    //     GHAssertNoErr (status, nil);
+    //     GHTestLog(@" -- OK:");
+    // }
 
-    // // {
-    // //     OSStatus status = TEST_LOG ([AudioSession setLoudspeakerEnabled: NO]);
-    // //     GHAssertNoErr (status, nil);
-    // //     GHTestLog(@" -- OK:");
-    // // }
+    // {
+    //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
+    //     GHAssertFalse (enabled, nil);
+    //     GHTestLog(@" -- OK: loudspeakerEnabled is disabled");
+    // }
 
-    // // {
-    // //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
-    // //     GHAssertFalse (enabled, nil);
-    // //     GHTestLog(@" -- OK: loudspeakerEnabled is disabled");
-    // // }
+    // {
+    //     OSStatus status = TEST_LOG ([AudioSession setLoudspeakerEnabled: YES]);
+    //     GHAssertNoErr (status, nil);
+    //     GHTestLog(@" -- OK:");
+    // }
 
-    // // {
-    // //     OSStatus status = TEST_LOG ([AudioSession setLoudspeakerEnabled: YES]);
-    // //     GHAssertNoErr (status, nil);
-    // //     GHTestLog(@" -- OK:");
-    // // }
-
-    // // {
-    // //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
-    // //     GHAssertTrue (enabled, nil);
-    // //     GHTestLog(@" -- OK: loudspeakerEnabled is enabled");
-    // // }
+    // {
+    //     BOOL enabled = TEST_LOG ([AudioSession loudspeakerEnabled]);
+    //     GHAssertTrue (enabled, nil);
+    //     GHTestLog(@" -- OK: loudspeakerEnabled is enabled");
+    // }
 }
 
 @end
