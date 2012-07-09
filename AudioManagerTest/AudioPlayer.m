@@ -80,6 +80,9 @@ static void* _s_currentItemContext = &_s_currentItemContext;
         return NO;
     }
 
+    [self setupPlayerItemToItem: nil];
+    [self setupPlayer];
+
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL: url options: nil];
 
     if (! asset) {
